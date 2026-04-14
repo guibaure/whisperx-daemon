@@ -1,0 +1,6 @@
+-r requirements-cuda.txt
+-c constraints-dev.txt
+mypy
+ruff
+-e ./packages/transcript-postprocess[ner]
+-e .
