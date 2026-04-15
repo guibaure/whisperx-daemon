@@ -32,10 +32,6 @@ Recommended bind-mount invocation:
 ```bash
 docker run --rm --gpus all \
   --user "$(id -u):$(id -g)" \
-  -e HOME=/tmp \
-  -e XDG_CACHE_HOME=/tmp/.cache \
-  -e HF_HOME=/tmp/.cache/huggingface \
-  -e TRANSFORMERS_CACHE=/tmp/.cache/huggingface/transformers \
   -v "$(pwd)/runtime:/app/runtime" \
   whisperx-daemon:latest \
   --runtime-dir /app/runtime \
@@ -49,9 +45,21 @@ Why these options matter:
 
 - `--user "$(id -u):$(id -g)"` prevents root-owned files in bind-mounted
   runtime directories
-- temporary cache environment variables keep model caches writable inside the
-  container
 - `float16` is the practical CUDA default because it reduces VRAM pressure
+
+The image entrypoint derives arbitrary-UID-safe runtime paths under
+`<runtime-dir>/.container-state/`, so you do not need to pass `HOME`,
+`XDG_CACHE_HOME`, `XDG_CONFIG_HOME`, `HF_HOME`, `TORCH_HOME`, or
+`MPLCONFIGDIR` explicitly for the common bind-mounted runtime case.
+
+This is deliberate. The image does not bake cache or config directories into
+the filesystem at build time, because doing so creates root-owned paths in the
+image layer and later breaks arbitrary host UID/GID execution. The runtime
+entrypoint creates the writable directories only when the container starts,
+under the identity that will actually execute the daemon.
+
+If you need different locations, override them explicitly with environment
+variables such as `WHISPERX_DAEMON_HOME`, `HF_HOME`, or `MPLCONFIGDIR`.
 
 ## Entrypoint Override
 

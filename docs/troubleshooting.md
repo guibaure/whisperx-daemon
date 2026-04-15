@@ -39,6 +39,39 @@ Run the container with:
 
 This avoids root-owned output files on the host.
 
+## `Permission denied: '/home/whisperx/.pyannote/database.yml'`
+
+This happens when the container runs as a host UID/GID that cannot write to the
+image user's home directory. The current image derives writable runtime-scoped
+cache and configuration paths under `<runtime-dir>/.container-state/` and no
+longer pre-creates user-owned cache subdirectories in the image, so rebuild the
+image and retry.
+
+If you are using an older image, pass writable overrides explicitly:
+
+```bash
+-e HOME=/tmp/whisperx-home \
+-e XDG_CACHE_HOME=/tmp/whisperx-cache \
+-e XDG_CONFIG_HOME=/tmp/whisperx-config \
+-e HF_HOME=/tmp/whisperx-huggingface \
+-e TORCH_HOME=/tmp/whisperx-cache/torch \
+-e MPLCONFIGDIR=/tmp/whisperx-matplotlib
+```
+
+## Matplotlib cache warnings under Docker
+
+If Matplotlib warns that it cannot write to `/home/whisperx/.config`, you are
+running an older image whose default config path is not writable for the chosen
+UID/GID. Rebuild the image or pass `MPLCONFIGDIR` to a writable path.
+
+## `Permission denied: '/tmp/whisperx-cache/torch'`
+
+This usually means the image was built from an older Dockerfile that exported
+cache paths during `docker build`, allowing root-owned cache directories to be
+created in the image layer. Rebuild the image from the current repository and
+retry. The current image creates Torch and Hugging Face cache directories only
+at container start, using the actual runtime UID/GID.
+
 ## Pseudonymisation misses names
 
 This feature depends on the selected NER model. If names are missed:
