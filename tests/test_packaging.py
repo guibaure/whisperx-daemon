@@ -127,9 +127,15 @@ class PackagingContractTests(unittest.TestCase):
         self.assertNotIn("ENV HF_HOME=", dockerfile_text)
         self.assertNotIn("ENV TRANSFORMERS_CACHE=", dockerfile_text)
         self.assertNotIn("ENV MPLCONFIGDIR=", dockerfile_text)
-        self.assertNotIn("mkdir -p /tmp/.cache/huggingface/transformers", dockerfile_text)
+        self.assertNotIn(
+            "mkdir -p /tmp/.cache/huggingface/transformers",
+            dockerfile_text,
+        )
         self.assertNotIn("mkdir -p /tmp/.config/matplotlib", dockerfile_text)
-        self.assertNotIn("chown -R whisperx:whisperx /app /home/whisperx /tmp", dockerfile_text)
+        self.assertNotIn(
+            "chown -R whisperx:whisperx /app /home/whisperx /tmp",
+            dockerfile_text,
+        )
         self.assertIn(
             "container_state_dir=${WHISPERX_DAEMON_CONTAINER_STATE_DIR:-${runtime_dir}/.container-state}",
             entrypoint_text,
