@@ -47,10 +47,15 @@ Why these options matter:
   runtime directories
 - `float16` is the practical CUDA default because it reduces VRAM pressure
 
-The image now defaults to arbitrary-UID-safe cache and configuration paths
-under `/tmp`, so you do not need to pass `HOME`, `XDG_CACHE_HOME`, `HF_HOME`,
-`TRANSFORMERS_CACHE`, or `MPLCONFIGDIR` explicitly for the common bind-mounted
-runtime case.
+The image now defaults to dedicated arbitrary-UID-safe cache and configuration
+paths under `/tmp/whisperx-*`, so you do not need to pass `HOME`,
+`XDG_CACHE_HOME`, `HF_HOME`, `TRANSFORMERS_CACHE`, or `MPLCONFIGDIR`
+explicitly for the common bind-mounted runtime case.
+
+The image also avoids baking user-owned cache or runtime subdirectories into
+the filesystem. That matters for generic container use: when you override the
+runtime user with `--user`, the container must still be able to create its own
+cache, config, and runtime directories at startup.
 
 ## Entrypoint Override
 

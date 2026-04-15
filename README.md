@@ -74,8 +74,11 @@ docker run --rm \
 ```
 
 For CUDA containers, the host must provide the NVIDIA Container Toolkit.
-The current image also defaults to writable cache and configuration directories
-under `/tmp`, so it remains compatible with `--user "$(id -u):$(id -g)"`.
+The current image is generic in the container sense: it keeps a fixed non-root
+default user, but it is also safe to override the runtime UID/GID with
+`--user "$(id -u):$(id -g)"` when bind-mounting host directories such as
+`runtime`. To avoid permission collisions with base-image directories, the
+image uses dedicated writable cache and config paths under `/tmp/whisperx-*`.
 
 ## Documentation
 

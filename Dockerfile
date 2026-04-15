@@ -24,11 +24,11 @@ COPY whisperx_daemon /app/whisperx_daemon
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV HOME=/tmp
-ENV XDG_CACHE_HOME=/tmp/.cache
-ENV XDG_CONFIG_HOME=/tmp/.config
-ENV HF_HOME=/tmp/.cache/huggingface
-ENV TRANSFORMERS_CACHE=/tmp/.cache/huggingface/transformers
-ENV MPLCONFIGDIR=/tmp/.config/matplotlib
+ENV XDG_CACHE_HOME=/tmp/whisperx-cache
+ENV XDG_CONFIG_HOME=/tmp/whisperx-config
+ENV HF_HOME=/tmp/whisperx-huggingface
+ENV TRANSFORMERS_CACHE=/tmp/whisperx-huggingface/transformers
+ENV MPLCONFIGDIR=/tmp/whisperx-matplotlib
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir "torchcodec>=0.7,<0.8" \
@@ -37,17 +37,9 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir "/app/packages/transcript-postprocess[ner]" \
     && pip install --no-cache-dir .
 
-RUN mkdir -p \
-    /tmp/.cache/huggingface/transformers \
-    /tmp/.config/matplotlib \
-    /app/runtime/input \
-    /app/runtime/processing \
-    /app/runtime/archive/succeeded \
-    /app/runtime/archive/failed \
-    /app/runtime/output \
-    /app/runtime/failed \
-    /app/runtime/logs \
-    && chown -R whisperx:whisperx /app /home/whisperx /tmp/.cache /tmp/.config
+RUN mkdir -p /app/runtime \
+    && chmod 0777 /app/runtime \
+    && chown -R whisperx:whisperx /app /home/whisperx
 
 VOLUME ["/app/runtime"]
 

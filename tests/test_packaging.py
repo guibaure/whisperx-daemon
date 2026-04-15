@@ -110,9 +110,14 @@ class PackagingContractTests(unittest.TestCase):
         dockerfile_text = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
         self.assertIn("ENV HOME=/tmp", dockerfile_text)
-        self.assertIn("ENV XDG_CACHE_HOME=/tmp/.cache", dockerfile_text)
-        self.assertIn("ENV XDG_CONFIG_HOME=/tmp/.config", dockerfile_text)
-        self.assertIn("ENV MPLCONFIGDIR=/tmp/.config/matplotlib", dockerfile_text)
+        self.assertIn("ENV XDG_CACHE_HOME=/tmp/whisperx-cache", dockerfile_text)
+        self.assertIn("ENV XDG_CONFIG_HOME=/tmp/whisperx-config", dockerfile_text)
+        self.assertIn("ENV MPLCONFIGDIR=/tmp/whisperx-matplotlib", dockerfile_text)
+        self.assertIn("mkdir -p /app/runtime", dockerfile_text)
+        self.assertIn("chmod 0777 /app/runtime", dockerfile_text)
+        self.assertNotIn("mkdir -p /tmp/.cache/huggingface/transformers", dockerfile_text)
+        self.assertNotIn("mkdir -p /tmp/.config/matplotlib", dockerfile_text)
+        self.assertNotIn("chown -R whisperx:whisperx /app /home/whisperx /tmp", dockerfile_text)
 
     def test_plain_checkout_cli_help_still_works(self) -> None:
         environment = dict(os.environ)
