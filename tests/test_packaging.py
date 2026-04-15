@@ -108,9 +108,9 @@ class PackagingContractTests(unittest.TestCase):
 
     def test_dockerfile_uses_arbitrary_uid_safe_runtime_paths(self) -> None:
         dockerfile_text = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
-        entrypoint_text = (
-            REPOSITORY_ROOT / "docker" / "entrypoint.sh"
-        ).read_text(encoding="utf-8")
+        entrypoint_text = (REPOSITORY_ROOT / "docker" / "entrypoint.sh").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn(
             "COPY docker/entrypoint.sh /usr/local/bin/whisperx-daemon-entrypoint",
