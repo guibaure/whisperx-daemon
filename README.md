@@ -74,6 +74,8 @@ docker run --rm \
 ```
 
 For CUDA containers, the host must provide the NVIDIA Container Toolkit.
+The current image also defaults to writable cache and configuration directories
+under `/tmp`, so it remains compatible with `--user "$(id -u):$(id -g)"`.
 
 ## Documentation
 

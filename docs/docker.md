@@ -32,10 +32,6 @@ Recommended bind-mount invocation:
 ```bash
 docker run --rm --gpus all \
   --user "$(id -u):$(id -g)" \
-  -e HOME=/tmp \
-  -e XDG_CACHE_HOME=/tmp/.cache \
-  -e HF_HOME=/tmp/.cache/huggingface \
-  -e TRANSFORMERS_CACHE=/tmp/.cache/huggingface/transformers \
   -v "$(pwd)/runtime:/app/runtime" \
   whisperx-daemon:latest \
   --runtime-dir /app/runtime \
@@ -49,9 +45,12 @@ Why these options matter:
 
 - `--user "$(id -u):$(id -g)"` prevents root-owned files in bind-mounted
   runtime directories
-- temporary cache environment variables keep model caches writable inside the
-  container
 - `float16` is the practical CUDA default because it reduces VRAM pressure
+
+The image now defaults to arbitrary-UID-safe cache and configuration paths
+under `/tmp`, so you do not need to pass `HOME`, `XDG_CACHE_HOME`, `HF_HOME`,
+`TRANSFORMERS_CACHE`, or `MPLCONFIGDIR` explicitly for the common bind-mounted
+runtime case.
 
 ## Entrypoint Override
 

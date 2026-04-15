@@ -23,9 +23,12 @@ COPY whisperx_daemon /app/whisperx_daemon
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV HOME=/home/whisperx
-ENV XDG_CACHE_HOME=/home/whisperx/.cache
-ENV HF_HOME=/home/whisperx/.cache/huggingface
+ENV HOME=/tmp
+ENV XDG_CACHE_HOME=/tmp/.cache
+ENV XDG_CONFIG_HOME=/tmp/.config
+ENV HF_HOME=/tmp/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/tmp/.cache/huggingface/transformers
+ENV MPLCONFIGDIR=/tmp/.config/matplotlib
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir "torchcodec>=0.7,<0.8" \
@@ -35,7 +38,8 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir .
 
 RUN mkdir -p \
-    /home/whisperx/.cache/huggingface \
+    /tmp/.cache/huggingface/transformers \
+    /tmp/.config/matplotlib \
     /app/runtime/input \
     /app/runtime/processing \
     /app/runtime/archive/succeeded \
@@ -43,7 +47,7 @@ RUN mkdir -p \
     /app/runtime/output \
     /app/runtime/failed \
     /app/runtime/logs \
-    && chown -R whisperx:whisperx /app /home/whisperx
+    && chown -R whisperx:whisperx /app /home/whisperx /tmp/.cache /tmp/.config
 
 VOLUME ["/app/runtime"]
 

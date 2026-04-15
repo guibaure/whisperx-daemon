@@ -106,6 +106,14 @@ class PackagingContractTests(unittest.TestCase):
             dockerfile_text,
         )
 
+    def test_dockerfile_uses_arbitrary_uid_safe_runtime_paths(self) -> None:
+        dockerfile_text = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+        self.assertIn("ENV HOME=/tmp", dockerfile_text)
+        self.assertIn("ENV XDG_CACHE_HOME=/tmp/.cache", dockerfile_text)
+        self.assertIn("ENV XDG_CONFIG_HOME=/tmp/.config", dockerfile_text)
+        self.assertIn("ENV MPLCONFIGDIR=/tmp/.config/matplotlib", dockerfile_text)
+
     def test_plain_checkout_cli_help_still_works(self) -> None:
         environment = dict(os.environ)
         environment.pop("PYTHONPATH", None)
