@@ -138,27 +138,27 @@ class PackagingContractTests(unittest.TestCase):
             entrypoint_text,
         )
         self.assertIn(
-            'export HOME=${WHISPERX_DAEMON_HOME:-${container_state_dir}/home}',
+            "export HOME=${WHISPERX_DAEMON_HOME:-${container_state_dir}/home}",
             entrypoint_text,
         )
         self.assertIn(
-            'export XDG_CACHE_HOME=${XDG_CACHE_HOME:-${container_state_dir}/cache}',
+            "export XDG_CACHE_HOME=${XDG_CACHE_HOME:-${container_state_dir}/cache}",
             entrypoint_text,
         )
         self.assertIn(
-            'export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-${container_state_dir}/config}',
+            "export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-${container_state_dir}/config}",
             entrypoint_text,
         )
         self.assertIn(
-            'export HF_HOME=${HF_HOME:-${container_state_dir}/huggingface}',
+            "export HF_HOME=${HF_HOME:-${container_state_dir}/huggingface}",
             entrypoint_text,
         )
         self.assertIn(
-            'export TORCH_HOME=${TORCH_HOME:-${XDG_CACHE_HOME}/torch}',
+            "export TORCH_HOME=${TORCH_HOME:-${XDG_CACHE_HOME}/torch}",
             entrypoint_text,
         )
         self.assertIn(
-            'export MPLCONFIGDIR=${MPLCONFIGDIR:-${container_state_dir}/matplotlib}',
+            "export MPLCONFIGDIR=${MPLCONFIGDIR:-${container_state_dir}/matplotlib}",
             entrypoint_text,
         )
 
