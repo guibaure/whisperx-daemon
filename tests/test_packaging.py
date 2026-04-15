@@ -122,20 +122,17 @@ class PackagingContractTests(unittest.TestCase):
         )
         self.assertIn("mkdir -p /app/runtime", dockerfile_text)
         self.assertIn("chmod 0777 /app/runtime", dockerfile_text)
-        self.assertNotIn("ENV XDG_CACHE_HOME=", dockerfile_text)
-        self.assertNotIn("ENV XDG_CONFIG_HOME=", dockerfile_text)
-        self.assertNotIn("ENV HF_HOME=", dockerfile_text)
-        self.assertNotIn("ENV TRANSFORMERS_CACHE=", dockerfile_text)
-        self.assertNotIn("ENV MPLCONFIGDIR=", dockerfile_text)
-        self.assertNotIn(
+        for unexpected_snippet in (
+            "ENV XDG_CACHE_HOME=",
+            "ENV XDG_CONFIG_HOME=",
+            "ENV HF_HOME=",
+            "ENV TRANSFORMERS_CACHE=",
+            "ENV MPLCONFIGDIR=",
             "mkdir -p /tmp/.cache/huggingface/transformers",
-            dockerfile_text,
-        )
-        self.assertNotIn("mkdir -p /tmp/.config/matplotlib", dockerfile_text)
-        self.assertNotIn(
+            "mkdir -p /tmp/.config/matplotlib",
             "chown -R whisperx:whisperx /app /home/whisperx /tmp",
-            dockerfile_text,
-        )
+        ):
+            self.assertNotIn(unexpected_snippet, dockerfile_text)
         self.assertIn(
             "container_state_dir=${WHISPERX_DAEMON_CONTAINER_STATE_DIR:-${runtime_dir}/.container-state}",
             entrypoint_text,
