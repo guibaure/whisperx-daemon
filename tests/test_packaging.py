@@ -108,16 +108,56 @@ class PackagingContractTests(unittest.TestCase):
 
     def test_dockerfile_uses_arbitrary_uid_safe_runtime_paths(self) -> None:
         dockerfile_text = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
+        entrypoint_text = (
+            REPOSITORY_ROOT / "docker" / "entrypoint.sh"
+        ).read_text(encoding="utf-8")
 
-        self.assertIn("ENV HOME=/tmp", dockerfile_text)
-        self.assertIn("ENV XDG_CACHE_HOME=/tmp/whisperx-cache", dockerfile_text)
-        self.assertIn("ENV XDG_CONFIG_HOME=/tmp/whisperx-config", dockerfile_text)
-        self.assertIn("ENV MPLCONFIGDIR=/tmp/whisperx-matplotlib", dockerfile_text)
+        self.assertIn(
+            "COPY docker/entrypoint.sh /usr/local/bin/whisperx-daemon-entrypoint",
+            dockerfile_text,
+        )
+        self.assertIn(
+            'ENTRYPOINT ["/usr/local/bin/whisperx-daemon-entrypoint"]',
+            dockerfile_text,
+        )
         self.assertIn("mkdir -p /app/runtime", dockerfile_text)
         self.assertIn("chmod 0777 /app/runtime", dockerfile_text)
+        self.assertNotIn("ENV XDG_CACHE_HOME=", dockerfile_text)
+        self.assertNotIn("ENV XDG_CONFIG_HOME=", dockerfile_text)
+        self.assertNotIn("ENV HF_HOME=", dockerfile_text)
+        self.assertNotIn("ENV TRANSFORMERS_CACHE=", dockerfile_text)
+        self.assertNotIn("ENV MPLCONFIGDIR=", dockerfile_text)
         self.assertNotIn("mkdir -p /tmp/.cache/huggingface/transformers", dockerfile_text)
         self.assertNotIn("mkdir -p /tmp/.config/matplotlib", dockerfile_text)
         self.assertNotIn("chown -R whisperx:whisperx /app /home/whisperx /tmp", dockerfile_text)
+        self.assertIn(
+            "container_state_dir=${WHISPERX_DAEMON_CONTAINER_STATE_DIR:-${runtime_dir}/.container-state}",
+            entrypoint_text,
+        )
+        self.assertIn(
+            'export HOME=${WHISPERX_DAEMON_HOME:-${container_state_dir}/home}',
+            entrypoint_text,
+        )
+        self.assertIn(
+            'export XDG_CACHE_HOME=${XDG_CACHE_HOME:-${container_state_dir}/cache}',
+            entrypoint_text,
+        )
+        self.assertIn(
+            'export XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-${container_state_dir}/config}',
+            entrypoint_text,
+        )
+        self.assertIn(
+            'export HF_HOME=${HF_HOME:-${container_state_dir}/huggingface}',
+            entrypoint_text,
+        )
+        self.assertIn(
+            'export TORCH_HOME=${TORCH_HOME:-${XDG_CACHE_HOME}/torch}',
+            entrypoint_text,
+        )
+        self.assertIn(
+            'export MPLCONFIGDIR=${MPLCONFIGDIR:-${container_state_dir}/matplotlib}',
+            entrypoint_text,
+        )
 
     def test_plain_checkout_cli_help_still_works(self) -> None:
         environment = dict(os.environ)

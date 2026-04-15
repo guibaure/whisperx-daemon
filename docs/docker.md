@@ -47,15 +47,19 @@ Why these options matter:
   runtime directories
 - `float16` is the practical CUDA default because it reduces VRAM pressure
 
-The image now defaults to dedicated arbitrary-UID-safe cache and configuration
-paths under `/tmp/whisperx-*`, so you do not need to pass `HOME`,
-`XDG_CACHE_HOME`, `HF_HOME`, `TRANSFORMERS_CACHE`, or `MPLCONFIGDIR`
-explicitly for the common bind-mounted runtime case.
+The image entrypoint derives arbitrary-UID-safe runtime paths under
+`<runtime-dir>/.container-state/`, so you do not need to pass `HOME`,
+`XDG_CACHE_HOME`, `XDG_CONFIG_HOME`, `HF_HOME`, `TORCH_HOME`, or
+`MPLCONFIGDIR` explicitly for the common bind-mounted runtime case.
 
-The image also avoids baking user-owned cache or runtime subdirectories into
-the filesystem. That matters for generic container use: when you override the
-runtime user with `--user`, the container must still be able to create its own
-cache, config, and runtime directories at startup.
+This is deliberate. The image does not bake cache or config directories into
+the filesystem at build time, because doing so creates root-owned paths in the
+image layer and later breaks arbitrary host UID/GID execution. The runtime
+entrypoint creates the writable directories only when the container starts,
+under the identity that will actually execute the daemon.
+
+If you need different locations, override them explicitly with environment
+variables such as `WHISPERX_DAEMON_HOME`, `HF_HOME`, or `MPLCONFIGDIR`.
 
 ## Entrypoint Override
 

@@ -20,22 +20,18 @@ COPY pyproject.toml README.md /app/
 COPY packages/transcript-postprocess /app/packages/transcript-postprocess
 COPY src /app/src
 COPY whisperx_daemon /app/whisperx_daemon
+COPY docker/entrypoint.sh /usr/local/bin/whisperx-daemon-entrypoint
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
-ENV HOME=/tmp
-ENV XDG_CACHE_HOME=/tmp/whisperx-cache
-ENV XDG_CONFIG_HOME=/tmp/whisperx-config
-ENV HF_HOME=/tmp/whisperx-huggingface
-ENV TRANSFORMERS_CACHE=/tmp/whisperx-huggingface/transformers
-ENV MPLCONFIGDIR=/tmp/whisperx-matplotlib
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir "torchcodec>=0.7,<0.8" \
     && pip install --no-cache-dir sentencepiece \
     && pip install --no-cache-dir whisperx \
     && pip install --no-cache-dir "/app/packages/transcript-postprocess[ner]" \
-    && pip install --no-cache-dir .
+    && pip install --no-cache-dir . \
+    && chmod 0755 /usr/local/bin/whisperx-daemon-entrypoint
 
 RUN mkdir -p /app/runtime \
     && chmod 0777 /app/runtime \
@@ -45,5 +41,5 @@ VOLUME ["/app/runtime"]
 
 USER whisperx
 
-ENTRYPOINT ["python", "-m", "whisperx_daemon"]
+ENTRYPOINT ["/usr/local/bin/whisperx-daemon-entrypoint"]
 CMD ["--runtime-dir", "/app/runtime", "--once", "--model", "small", "--device", "cuda", "--compute-type", "float16"]

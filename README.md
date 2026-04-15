@@ -77,8 +77,12 @@ For CUDA containers, the host must provide the NVIDIA Container Toolkit.
 The current image is generic in the container sense: it keeps a fixed non-root
 default user, but it is also safe to override the runtime UID/GID with
 `--user "$(id -u):$(id -g)"` when bind-mounting host directories such as
-`runtime`. To avoid permission collisions with base-image directories, the
-image uses dedicated writable cache and config paths under `/tmp/whisperx-*`.
+`runtime`. At container start, the entrypoint derives writable cache, config,
+Hugging Face, Torch, and Matplotlib paths under
+`<runtime-dir>/.container-state/` for the actual executing UID unless you
+override them explicitly with environment variables. It also sets `HOME` to a
+writable runtime-scoped directory by default, so libraries that ignore XDG
+variables do not fall back to `/home/whisperx`.
 
 ## Documentation
 
