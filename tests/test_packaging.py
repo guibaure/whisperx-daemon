@@ -44,16 +44,17 @@ class PackagingContractTests(unittest.TestCase):
         for expected in ("whisperx", "torchcodec"):
             self.assertIn(expected, dep_text)
 
-    def test_pyproject_declares_torch_extra(self) -> None:
+    def test_pyproject_declares_cpu_and_gpu_extras(self) -> None:
         pyproject_payload = tomllib.loads(
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
 
         extras = pyproject_payload["project"]["optional-dependencies"]
-        torch_text = " ".join(extras["torch"])
 
-        self.assertIn("torch", torch_text)
-        self.assertIn("torchaudio", torch_text)
+        for group in ("cpu", "gpu"):
+            group_text = " ".join(extras[group])
+            self.assertIn("torch", group_text)
+            self.assertIn("torchaudio", group_text)
 
     def test_pyproject_declares_dev_optional_dependencies(self) -> None:
         pyproject_payload = tomllib.loads(
