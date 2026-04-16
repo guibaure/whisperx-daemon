@@ -40,11 +40,11 @@ explicit = true
 [tool.uv.sources]
 torch = [
     { index = "pytorch-cpu", marker = "extra == 'cpu'" },
-    { index = "pytorch-gpu", marker = "extra == 'gpu'" },
+    { index = "pytorch-gpu", marker = "extra != 'cpu' and extra == 'gpu'" },
 ]
 torchaudio = [
     { index = "pytorch-cpu", marker = "extra == 'cpu'" },
-    { index = "pytorch-gpu", marker = "extra == 'gpu'" },
+    { index = "pytorch-gpu", marker = "extra != 'cpu' and extra == 'gpu'" },
 ]
 
 [tool.setuptools]
