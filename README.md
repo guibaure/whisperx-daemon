@@ -9,6 +9,33 @@ It is designed as a production-oriented single-node service baseline, not as a
 distributed platform. The project uses [uv](https://docs.astral.sh/uv/) for
 fast dependency management and virtual environment creation.
 
+## Why `whisperx-daemon`
+
+`whisperx-daemon` is not just a thin wrapper around WhisperX. It adds the
+operational, privacy-oriented, and workflow features that upstream WhisperX
+does not provide out of the box.
+
+| Highlight | What `whisperx-daemon` adds beyond WhisperX |
+|---|---|
+| Pseudonymisation | Detects explicit person-name mentions and rewrites them to deterministic pseudonyms |
+| Anonymisation-oriented post-processing | Supports privacy-oriented transcript sanitisation workflows, while remaining explicit that this is not a formal anonymisation guarantee |
+| Proper-noun replacement | Rewrites configured sensitive terms after pseudonymisation with longest-match handling |
+| Managed runtime workflow | Watches `runtime/input`, processes stable files, writes outputs, and archives originals |
+| Idempotent processing | Tracks path and digest in SQLite so unchanged files are not reprocessed accidentally |
+| Production-shaped outputs | Writes structured JSON, readable TXT, and structured failure reports |
+| Continuous daemon mode | Runs once or continuously instead of only acting as a one-shot transcription script |
+| Docker/runtime hardening | Supports CPU or CUDA execution, bind-mounted runtimes, and arbitrary host UID/GID mapping |
+| Reusable post-processing package | Exposes `transcript-postprocess` as an independent package for standalone sanitisation workflows |
+
+## Privacy Features
+
+The main project-specific extension over WhisperX is transcript sanitisation.
+
+- `Pseudonymisation`: replaces detected explicit person names with stable pseudonyms inside one document
+- `Anonymisation-oriented processing`: supports privacy-oriented transcript rewriting, but should not be treated as a legal or formal anonymisation guarantee
+- `Term replacement`: rewrites configured proper nouns such as organisation names, product names, or internal project names
+- `Standalone reuse`: the same sanitisation logic is available outside the daemon through the `transcript-postprocess` package
+
 ## Prerequisites
 
 | Dependency | Install |
