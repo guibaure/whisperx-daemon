@@ -18,13 +18,13 @@ help:
 		'  make check      Run lint, format-check, typecheck, and tests'
 
 venv:
-	$(PYTHON) -m venv $(VENV_DIR)
+	uv venv $(VENV_DIR)
 
 setup-cpu: venv
-	$(VENV_PYTHON) -m pip install -r requirements-dev-cpu.txt
+	uv pip install --python $(VENV_PYTHON) -r requirements-dev-cpu.txt
 
 setup-cuda: venv
-	$(VENV_PYTHON) -m pip install -r requirements-dev-cuda.txt
+	uv pip install --python $(VENV_PYTHON) -r requirements-dev-cuda.txt
 
 test:
 	PYTHONPATH=src:packages/transcript-postprocess/src $(PYTHON) -m unittest discover -s tests -v
