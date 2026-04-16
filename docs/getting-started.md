@@ -4,6 +4,7 @@ This guide takes a clean checkout to a first successful transcription.
 
 ## Prerequisites
 
+- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Python `3.11` or newer
 - FFmpeg installed on the host
 - enough free disk space for model caches, logs, outputs, and archives
@@ -17,9 +18,8 @@ Optional:
 ## First CPU Run
 
 ```bash
-python3 -m venv .venv
+make setup-cpu
 . .venv/bin/activate
-pip install -r requirements-dev-cpu.txt
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/
@@ -46,9 +46,8 @@ If transcription fails:
 ## First CUDA Run
 
 ```bash
-python3 -m venv .venv
+make setup-cuda
 . .venv/bin/activate
-pip install -r requirements-dev-cuda.txt
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/

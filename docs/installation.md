@@ -1,5 +1,14 @@
 # Installation
 
+## Package Manager
+
+This project uses [uv](https://docs.astral.sh/uv/) for virtual environment
+creation and dependency installation. Install it with:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
 ## Pinning Strategy
 
 The repository uses shared constraints files plus environment-specific
@@ -31,17 +40,15 @@ PyTorch combination is incompatible with `torchcodec > 0.7`.
 ## Local CPU Environment
 
 ```bash
-python3 -m venv .venv
+make setup-cpu
 . .venv/bin/activate
-pip install -r requirements-dev-cpu.txt
 ```
 
 ## Local CUDA Environment
 
 ```bash
-python3 -m venv .venv
+make setup-cuda
 . .venv/bin/activate
-pip install -r requirements-dev-cuda.txt
 ```
 
 ## Package Layout

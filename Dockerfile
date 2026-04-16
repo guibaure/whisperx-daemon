@@ -1,5 +1,6 @@
 FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
@@ -25,12 +26,11 @@ COPY docker/entrypoint.sh /usr/local/bin/whisperx-daemon-entrypoint
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir "torchcodec>=0.7,<0.8" \
-    && pip install --no-cache-dir sentencepiece \
-    && pip install --no-cache-dir whisperx \
-    && pip install --no-cache-dir "/app/packages/transcript-postprocess[ner]" \
-    && pip install --no-cache-dir . \
+RUN uv pip install --system --no-cache "torchcodec>=0.7,<0.8" \
+    && uv pip install --system --no-cache sentencepiece \
+    && uv pip install --system --no-cache whisperx \
+    && uv pip install --system --no-cache "/app/packages/transcript-postprocess[ner]" \
+    && uv pip install --system --no-cache . \
     && chmod 0755 /usr/local/bin/whisperx-daemon-entrypoint
 
 RUN mkdir -p /app/runtime \

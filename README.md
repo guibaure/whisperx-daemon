@@ -8,6 +8,12 @@ records job state so unchanged files are not reprocessed accidentally.
 It is designed as a production-oriented single-node service baseline, not as a
 distributed platform.
 
+## Prerequisites
+
+- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+- Python 3.11+
+- FFmpeg
+
 ## Features
 
 - managed runtime lifecycle for input, processing, output, and archived files
@@ -25,9 +31,8 @@ distributed platform.
 ### Local CPU
 
 ```bash
-python3 -m venv .venv
+make setup-cpu
 . .venv/bin/activate
-pip install -r requirements-dev-cpu.txt
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/
@@ -43,9 +48,8 @@ python3 -m whisperx_daemon \
 ### Local CUDA
 
 ```bash
-python3 -m venv .venv
+make setup-cuda
 . .venv/bin/activate
-pip install -r requirements-dev-cuda.txt
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/

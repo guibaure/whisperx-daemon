@@ -17,19 +17,19 @@ later moved into its own repository with minimal reshaping.
 Term replacement only:
 
 ```bash
-pip install .
+uv pip install .
 ```
 
 Pseudonymisation additionally requires the optional NER dependencies:
 
 ```bash
-pip install ".[ner]"
+uv pip install ".[ner]"
 ```
 
 From this monorepo during development:
 
 ```bash
-pip install -e ./packages/transcript-postprocess[ner]
+uv pip install -e ./packages/transcript-postprocess[ner]
 ```
 
 ## CLI Usage

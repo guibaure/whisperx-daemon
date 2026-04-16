@@ -91,7 +91,7 @@ Behaviour:
 The reusable post-processing logic is also available independently:
 
 ```bash
-pip install -e ./packages/transcript-postprocess[ner]
+uv pip install -e ./packages/transcript-postprocess[ner]
 
 python3 -m transcript_postprocess \
   --input-file ./raw.txt \

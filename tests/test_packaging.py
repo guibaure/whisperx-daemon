@@ -102,7 +102,7 @@ class PackagingContractTests(unittest.TestCase):
             dockerfile_text,
         )
         self.assertIn(
-            'pip install --no-cache-dir "/app/packages/transcript-postprocess[ner]"',
+            'uv pip install --system --no-cache "/app/packages/transcript-postprocess[ner]"',
             dockerfile_text,
         )
 

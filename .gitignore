@@ -7,6 +7,9 @@ __pycache__/
 .venv/
 venv/
 
+# uv cache.
+.uv_cache/
+
 # Test and tooling caches.
 .pytest_cache/
 .mypy_cache/
