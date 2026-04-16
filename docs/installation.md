@@ -11,21 +11,12 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ## Pinning Strategy
 
-The repository uses shared constraints files plus environment-specific
-requirement entrypoints:
+All dependency pins live in the root `pyproject.toml`:
 
-- [`../constraints-runtime.txt`](../constraints-runtime.txt)
-  Shared runtime version contract.
-- [`../constraints-dev.txt`](../constraints-dev.txt)
-  Shared development-tool version contract.
-- [`../requirements-cpu.txt`](../requirements-cpu.txt)
-  CPU runtime dependencies.
-- [`../requirements-cuda.txt`](../requirements-cuda.txt)
-  CUDA runtime dependencies.
-- [`../requirements-dev-cpu.txt`](../requirements-dev-cpu.txt)
-  CPU runtime dependencies plus development tools and editable installs.
-- [`../requirements-dev-cuda.txt`](../requirements-dev-cuda.txt)
-  CUDA runtime dependencies plus development tools and editable installs.
+- `[project].dependencies` — runtime pins (`torch`, `torchaudio`, `whisperx`,
+  `torchcodec`).
+- `[project.optional-dependencies].dev` — development-tool pins (`mypy`,
+  `ruff`).
 
 Current shared runtime pins:
 
@@ -36,6 +27,9 @@ Current shared runtime pins:
 
 The `torchcodec` upper bound is intentional because the current WhisperX and
 PyTorch combination is incompatible with `torchcodec > 0.7`.
+
+CPU and CUDA variants install the same packages — the PyTorch index URL passed
+at install time (`--index-url`) determines which wheel flavour is resolved.
 
 ## Local CPU Environment
 
@@ -58,7 +52,7 @@ This monorepo contains two Python packages:
 - `whisperx-daemon`
 - `transcript-postprocess`
 
-Development requirement files install both packages editably:
+The Makefile targets install both packages editably:
 
 - `-e .`
 - `-e ./packages/transcript-postprocess[ner]`

@@ -8,6 +8,44 @@ version = "0.1.0"
 description = "Local-first audio transcription daemon scaffold"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = [
+    "whisperx==3.8.4",
+    "torchcodec>=0.7,<0.8",
+]
+
+[project.optional-dependencies]
+cpu = [
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+]
+gpu = [
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+]
+dev = [
+    "mypy==1.18.2",
+    "ruff==0.12.10",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-gpu"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "extra == 'cpu'" },
+    { index = "pytorch-gpu", marker = "extra != 'cpu' and extra == 'gpu'" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", marker = "extra == 'cpu'" },
+    { index = "pytorch-gpu", marker = "extra != 'cpu' and extra == 'gpu'" },
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

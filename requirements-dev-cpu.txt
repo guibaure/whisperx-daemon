@@ -1,6 +1,0 @@
--r requirements-cpu.txt
--c constraints-dev.txt
-mypy
-ruff
--e ./packages/transcript-postprocess[ner]
--e .

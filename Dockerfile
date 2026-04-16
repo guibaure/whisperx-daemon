@@ -26,11 +26,8 @@ COPY docker/entrypoint.sh /usr/local/bin/whisperx-daemon-entrypoint
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN uv pip install --system --no-cache "torchcodec>=0.7,<0.8" \
-    && uv pip install --system --no-cache sentencepiece \
-    && uv pip install --system --no-cache whisperx \
-    && uv pip install --system --no-cache "/app/packages/transcript-postprocess[ner]" \
-    && uv pip install --system --no-cache . \
+RUN uv pip install --system --no-cache \
+        "/app/packages/transcript-postprocess[ner]" ".[gpu]" \
     && chmod 0755 /usr/local/bin/whisperx-daemon-entrypoint
 
 RUN mkdir -p /app/runtime \

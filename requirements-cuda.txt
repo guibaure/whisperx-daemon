@@ -1,9 +1,0 @@
---index-url https://download.pytorch.org/whl/cu128
---extra-index-url https://pypi.org/simple
-
--c constraints-runtime.txt
-
-torch
-torchaudio
-whisperx
-torchcodec

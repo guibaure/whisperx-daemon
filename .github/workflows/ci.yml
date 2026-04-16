@@ -35,8 +35,7 @@ jobs:
 
       - name: Install lightweight CI dependencies
         run: |
-          uv pip install --system build ruff==0.12.10 mypy==1.18.2
-          uv pip install --system -e ./packages/transcript-postprocess -e .
+          uv pip install --system build -e "./packages/transcript-postprocess" -e ".[dev]"
 
       - name: Run repository test suite
         run: make test
@@ -65,8 +64,7 @@ jobs:
 
       - name: Install lightweight CI dependencies
         run: |
-          uv pip install --system build ruff==0.12.10 mypy==1.18.2
-          uv pip install --system -e ./packages/transcript-postprocess -e .
+          uv pip install --system build -e "./packages/transcript-postprocess" -e ".[dev]"
 
       - name: Run Ruff lint checks
         run: make lint

@@ -21,10 +21,12 @@ venv:
 	uv venv $(VENV_DIR)
 
 setup-cpu: venv
-	uv pip install --python $(VENV_PYTHON) -r requirements-dev-cpu.txt
+	uv pip install --python $(VENV_PYTHON) \
+		-e "./packages/transcript-postprocess[ner]" -e ".[cpu,dev]"
 
 setup-cuda: venv
-	uv pip install --python $(VENV_PYTHON) -r requirements-dev-cuda.txt
+	uv pip install --python $(VENV_PYTHON) \
+		-e "./packages/transcript-postprocess[ner]" -e ".[gpu,dev]"
 
 test:
 	PYTHONPATH=src:packages/transcript-postprocess/src $(PYTHON) -m unittest discover -s tests -v
