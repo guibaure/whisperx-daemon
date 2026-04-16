@@ -14,11 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-cpu = [
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
-]
-gpu = [
+torch = [
     "torch==2.8.0",
     "torchaudio==2.8.0",
 ]

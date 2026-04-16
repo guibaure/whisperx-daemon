@@ -24,13 +24,13 @@ setup-cpu: venv
 	uv pip install --python $(VENV_PYTHON) \
 		--index-url https://download.pytorch.org/whl/cpu \
 		--extra-index-url https://pypi.org/simple \
-		-e "./packages/transcript-postprocess[ner]" -e ".[cpu,dev]"
+		-e "./packages/transcript-postprocess[ner]" -e ".[torch,dev]"
 
 setup-cuda: venv
 	uv pip install --python $(VENV_PYTHON) \
 		--index-url https://download.pytorch.org/whl/cu128 \
 		--extra-index-url https://pypi.org/simple \
-		-e "./packages/transcript-postprocess[ner]" -e ".[gpu,dev]"
+		-e "./packages/transcript-postprocess[ner]" -e ".[torch,dev]"
 
 test:
 	PYTHONPATH=src:packages/transcript-postprocess/src $(PYTHON) -m unittest discover -s tests -v
