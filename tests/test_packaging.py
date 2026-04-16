@@ -33,19 +33,28 @@ class PackagingContractTests(unittest.TestCase):
 
         self.assertEqual(package_roots, ["src"])
 
-    def test_pyproject_declares_runtime_dependencies(self) -> None:
+    def test_pyproject_declares_common_dependencies(self) -> None:
         pyproject_payload = tomllib.loads(
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
 
         dependencies = pyproject_payload["project"]["dependencies"]
-        dependency_names = [
-            d.split("=")[0].split(">")[0].split("<")[0]
-            for d in dependencies
-        ]
+        dep_text = " ".join(dependencies)
 
-        for expected_package in ("torch", "torchaudio", "whisperx", "torchcodec"):
-            self.assertIn(expected_package, dependency_names)
+        for expected in ("whisperx", "torchcodec"):
+            self.assertIn(expected, dep_text)
+
+    def test_pyproject_declares_cpu_and_gpu_extras(self) -> None:
+        pyproject_payload = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+
+        extras = pyproject_payload["project"]["optional-dependencies"]
+
+        for group in ("cpu", "gpu"):
+            group_text = " ".join(extras[group])
+            self.assertIn("torch", group_text)
+            self.assertIn("torchaudio", group_text)
 
     def test_pyproject_declares_dev_optional_dependencies(self) -> None:
         pyproject_payload = tomllib.loads(
