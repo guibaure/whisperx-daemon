@@ -33,16 +33,30 @@ class PackagingContractTests(unittest.TestCase):
 
         self.assertEqual(package_roots, ["src"])
 
-    def test_development_requirement_files_install_both_packages_editably(self) -> None:
-        expected_lines = [
-            "-e ./packages/transcript-postprocess[ner]",
-            "-e .",
+    def test_pyproject_declares_runtime_dependencies(self) -> None:
+        pyproject_payload = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+
+        dependencies = pyproject_payload["project"]["dependencies"]
+        dependency_names = [
+            d.split("=")[0].split(">")[0].split("<")[0]
+            for d in dependencies
         ]
 
-        for filename in ("requirements-dev-cpu.txt", "requirements-dev-cuda.txt"):
-            content = (REPOSITORY_ROOT / filename).read_text(encoding="utf-8")
-            for expected_line in expected_lines:
-                self.assertIn(expected_line, content, filename)
+        for expected_package in ("torch", "torchaudio", "whisperx", "torchcodec"):
+            self.assertIn(expected_package, dependency_names)
+
+    def test_pyproject_declares_dev_optional_dependencies(self) -> None:
+        pyproject_payload = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+
+        dev_deps = pyproject_payload["project"]["optional-dependencies"]["dev"]
+        dev_text = " ".join(dev_deps)
+
+        self.assertIn("mypy", dev_text)
+        self.assertIn("ruff", dev_text)
 
     def test_project_readmes_exist(self) -> None:
         self.assertTrue((REPOSITORY_ROOT / "README.md").is_file())
