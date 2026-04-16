@@ -6,29 +6,23 @@ files, writes JSON and plain-text outputs, archives the original inputs, and
 records job state so unchanged files are not reprocessed accidentally.
 
 It is designed as a production-oriented single-node service baseline, not as a
-distributed platform.
+distributed platform. The project uses [uv](https://docs.astral.sh/uv/) for
+fast dependency management and virtual environment creation.
 
 ## Prerequisites
 
-- [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- Python 3.11+
-- FFmpeg
+| Dependency | Install |
+|---|---|
+| [uv](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| Python 3.11+ | via system package manager or [python.org](https://www.python.org) |
+| FFmpeg | `apt install ffmpeg` / `brew install ffmpeg` |
 
-## Features
-
-- managed runtime lifecycle for input, processing, output, and archived files
-- SQLite-backed idempotency for unchanged-file detection
-- WhisperX transcription with alignment when the language is known
-- optional speaker diarisation with Hugging Face token wiring
-- optional person-name pseudonymisation
-- optional deterministic proper-noun replacement
-- CPU, CUDA, and Docker execution paths
-- independent `transcript-postprocess` package for reusable text sanitisation
-- CI, linting, formatting, mypy, and packaging checks
+Optional: NVIDIA GPU + driver for CUDA, NVIDIA Container Toolkit for Docker
+GPU passthrough, Hugging Face token for diarisation.
 
 ## Quick Start
 
-### Local CPU
+### CPU
 
 ```bash
 make setup-cpu
@@ -45,7 +39,7 @@ python3 -m whisperx_daemon \
   --compute-type int8
 ```
 
-### Local CUDA
+### CUDA
 
 ```bash
 make setup-cuda
@@ -77,75 +71,42 @@ docker run --rm \
   --compute-type int8
 ```
 
-For CUDA containers, the host must provide the NVIDIA Container Toolkit.
-The current image is generic in the container sense: it keeps a fixed non-root
-default user, but it is also safe to override the runtime UID/GID with
-`--user "$(id -u):$(id -g)"` when bind-mounting host directories such as
-`runtime`. At container start, the entrypoint derives writable cache, config,
-Hugging Face, Torch, and Matplotlib paths under
-`<runtime-dir>/.container-state/` for the actual executing UID unless you
-override them explicitly with environment variables. It also sets `HOME` to a
-writable runtime-scoped directory by default, so libraries that ignore XDG
-variables do not fall back to `/home/whisperx`.
-
-## Documentation
-
-Use the focused documents under [`docs/`](./docs):
-
-- [`docs/getting-started.md`](./docs/getting-started.md)
-  Zero-to-first-run setup for CPU, CUDA, and continuous watch mode.
-- [`docs/installation.md`](./docs/installation.md)
-  Dependency pinning strategy, local bootstrap, and package layout.
-- [`docs/usage.md`](./docs/usage.md)
-  Common CLI workflows and operational examples.
-- [`docs/configuration.md`](./docs/configuration.md)
-  Runtime directory contract, lifecycle rules, idempotency, and flag reference.
-- [`docs/output.md`](./docs/output.md)
-  JSON, TXT, and failure-report output contracts.
-- [`docs/post-processing.md`](./docs/post-processing.md)
-  Pseudonymisation, term replacement, and standalone package usage.
-- [`docs/docker.md`](./docs/docker.md)
-  Docker build, CPU/CUDA execution, GPU requirements, and entrypoint override.
-- [`docs/architecture.md`](./docs/architecture.md)
-  Repository structure, module responsibilities, and processing flow.
-- [`docs/troubleshooting.md`](./docs/troubleshooting.md)
-  Common runtime and environment failures.
+For CUDA containers add `--gpus all` and
+`--user "$(id -u):$(id -g)"` to prevent root-owned files. See
+[`docs/docker.md`](./docs/docker.md) for full details.
 
 ## Development
 
 ```bash
-make setup-cpu
-make lint
-make format
-make typecheck
-make test
-make check
+make setup-cpu    # or make setup-cuda
+make check        # lint + format-check + typecheck + test
 ```
+
+Individual targets: `make lint`, `make format`, `make typecheck`, `make test`.
 
 The repository contains two Python packages:
 
-- `whisperx-daemon`
-- `transcript-postprocess`
+| Package | Purpose |
+|---|---|
+| `whisperx-daemon` | Daemon: runtime lifecycle, transcription pipeline, CLI |
+| `transcript-postprocess` | Reusable text pseudonymisation and term replacement |
 
 The second is kept as an explicit dependency boundary so the text
 post-processing logic remains reusable outside the daemon.
 
-## Status
+## Documentation
 
-This project is production-shaped in several areas:
-
-- explicit runtime layout
-- deterministic file lifecycle
-- structured failure reporting
-- optional diarisation and post-processing
-- reproducible CPU/CUDA bootstrap
-- CI and quality tooling
-
-It remains intentionally lightweight in others:
-
-- no distributed scheduling
-- no remote control plane
-- no multi-worker coordination
+| Guide | Description |
+|---|---|
+| [Getting Started](./docs/getting-started.md) | Zero-to-first-run for CPU, CUDA, and watch mode |
+| [Installation](./docs/installation.md) | Dependency pinning, local bootstrap, package layout |
+| [Usage](./docs/usage.md) | Common CLI workflows and operational examples |
+| [Configuration](./docs/configuration.md) | Runtime directory contract, lifecycle, flag reference |
+| [Output](./docs/output.md) | JSON, TXT, and failure-report contracts |
+| [Post-Processing](./docs/post-processing.md) | Pseudonymisation, term replacement, standalone usage |
+| [Docker](./docs/docker.md) | Build, CPU/CUDA execution, GPU, entrypoint override |
+| [Architecture](./docs/architecture.md) | Module responsibilities and processing flow |
+| [Troubleshooting](./docs/troubleshooting.md) | Common runtime and environment failures |
 
 ## Licence
 
