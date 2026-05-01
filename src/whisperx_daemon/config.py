@@ -36,6 +36,7 @@ class TranscriptionConfig:
     person_ner_model: str = DEFAULT_PERSON_NER_MODEL
     term_replacements_path: Path | None = None
     omit_txt_time_ranges: bool = False
+    omit_txt_speaker_labels: bool = False
 
 
 @dataclass(frozen=True)

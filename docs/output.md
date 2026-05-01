@@ -65,6 +65,19 @@ When `--omit-txt-time-ranges` is enabled:
 <speaker>: <text>
 ```
 
+When `--omit-txt-speaker-labels` is enabled, the speaker prefix is replaced by
+a dialogue dash while the JSON speaker metadata remains unchanged:
+
+```text
+[<start>:<end>] - <text>
+```
+
+When both `--omit-txt-time-ranges` and `--omit-txt-speaker-labels` are enabled:
+
+```text
+- <text>
+```
+
 ## Failure Output
 
 Each failed input produces `<name>.error.json` in `runtime/failed`:

@@ -503,6 +503,7 @@ def write_text_output(
     document: TranscriptDocument,
     output_dir: Path,
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
 ) -> Path:
     """Write the plain-text transcript into the output directory.
 
@@ -512,7 +513,11 @@ def write_text_output(
 
     output_path = output_dir / f"{Path(document.source_path).stem}.txt"
     output_path.write_text(
-        build_plain_text_transcript(document, include_time_ranges=include_time_ranges),
+        build_plain_text_transcript(
+            document,
+            include_time_ranges=include_time_ranges,
+            include_speaker_labels=include_speaker_labels,
+        ),
         encoding="utf-8",
     )
     return output_path
@@ -521,6 +526,7 @@ def write_text_output(
 def build_plain_text_transcript(
     document: TranscriptDocument,
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
 ) -> str:
     """Render one plain-text line per segment with timing and speaker metadata.
 
@@ -529,7 +535,11 @@ def build_plain_text_transcript(
     """
 
     formatted_segments = [
-        format_plain_text_segment(segment, include_time_ranges=include_time_ranges)
+        format_plain_text_segment(
+            segment,
+            include_time_ranges=include_time_ranges,
+            include_speaker_labels=include_speaker_labels,
+        )
         for segment in document.segments
         if str(segment.get("text", "")).strip()
     ]
@@ -541,16 +551,18 @@ def build_plain_text_transcript(
 def format_plain_text_segment(
     segment: dict[str, Any],
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
 ) -> str:
     """Format a segment for the plain-text transcript output."""
 
     speaker = str(segment.get("speaker") or "UNKNOWN")
     text = str(segment.get("text", "")).strip()
+    speaker_prefix = f"{speaker}:" if include_speaker_labels else "-"
     if not include_time_ranges:
-        return f"{speaker}: {text}"
+        return f"{speaker_prefix} {text}"
     start = format_timestamp(segment.get("start"))
     end = format_timestamp(segment.get("end"))
-    return f"[{start}:{end}] {speaker}: {text}"
+    return f"[{start}:{end}] {speaker_prefix} {text}"
 
 
 def format_timestamp(value: Any) -> str:
@@ -569,6 +581,7 @@ def write_transcript_outputs(
     document: TranscriptDocument,
     output_dir: Path,
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
 ) -> dict[str, Path]:
     """Write all transcript artefacts and return their paths.
 
@@ -582,6 +595,7 @@ def write_transcript_outputs(
             document,
             output_dir,
             include_time_ranges=include_time_ranges,
+            include_speaker_labels=include_speaker_labels,
         ),
     }
 

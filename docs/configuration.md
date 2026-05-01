@@ -125,3 +125,5 @@ safely. It does not determine whether a file changed.
   daemon uses `runtime/term-replacements.json` when present.
 - `--omit-txt-time-ranges`
   Write TXT output without `[start:end]` prefixes.
+- `--omit-txt-speaker-labels`
+  Write TXT output with `-` instead of speaker labels such as `SPEAKER_00:`.

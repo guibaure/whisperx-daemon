@@ -138,4 +138,5 @@ def resolve_transcription_config(
         person_ner_model=transcription_config.person_ner_model,
         term_replacements_path=default_term_replacements_path,
         omit_txt_time_ranges=transcription_config.omit_txt_time_ranges,
+        omit_txt_speaker_labels=transcription_config.omit_txt_speaker_labels,
     )

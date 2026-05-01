@@ -725,6 +725,14 @@ class CliFlagTests(unittest.TestCase):
         args = build_argument_parser().parse_args(["--omit-txt-time-ranges"])
         self.assertTrue(args.omit_txt_time_ranges)
 
+    def test_omit_txt_speaker_labels_flag_defaults_to_false(self) -> None:
+        args = build_argument_parser().parse_args([])
+        self.assertFalse(args.omit_txt_speaker_labels)
+
+    def test_omit_txt_speaker_labels_flag_can_be_enabled(self) -> None:
+        args = build_argument_parser().parse_args(["--omit-txt-speaker-labels"])
+        self.assertTrue(args.omit_txt_speaker_labels)
+
 
 class PipelineIntegrationTests(unittest.TestCase):
     def test_shared_postprocess_package_can_be_used_directly(self) -> None:
@@ -892,6 +900,49 @@ class PipelineIntegrationTests(unittest.TestCase):
             self.assertEqual(processed_files, [source_path])
             text_output = (layout.output_dir / "sample.txt").read_text(encoding="utf-8")
             self.assertEqual(text_output, "UNKNOWN: Hello world")
+
+    def test_text_output_can_omit_speaker_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runtime_dir = Path(temp_dir) / "runtime"
+            layout = RuntimeLayout.from_root(runtime_dir)
+            ensure_runtime_directories(layout)
+            source_path = layout.input_dir / "sample.wav"
+            source_path.write_bytes(b"audio-bytes")
+
+            stable_timestamp = time.time() - 10
+            os.utime(source_path, (stable_timestamp, stable_timestamp))
+
+            transcription_config = TranscriptionConfig(
+                language="en",
+                diarize=True,
+                hf_token="hf-token",
+                min_speakers=1,
+                max_speakers=2,
+                omit_txt_time_ranges=True,
+                omit_txt_speaker_labels=True,
+            )
+            watcher = WorkspaceWatcher(
+                layout=layout,
+                store=JobStore(layout.state_db_path),
+                config=WatcherConfig(poll_interval=0.1, stability_window=0.0),
+                transcription_config=transcription_config,
+                logger=configure_logging(layout.logs_dir),
+                transcriber=WhisperXTranscriber(
+                    config=transcription_config,
+                    module_loader=lambda: _FakeWhisperXModule(),
+                ),
+            )
+            watcher._store.initialise()
+
+            processed_files = watcher.run_once()
+
+            self.assertEqual(processed_files, [source_path])
+            payload = json.loads(
+                (layout.output_dir / "sample.json").read_text(encoding="utf-8")
+            )
+            text_output = (layout.output_dir / "sample.txt").read_text(encoding="utf-8")
+            self.assertEqual(payload["segments"][0]["speaker"], "SPEAKER_00")
+            self.assertEqual(text_output, "- Hello world")
 
     def test_diarization_attaches_speaker_labels(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

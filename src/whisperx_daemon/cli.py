@@ -139,6 +139,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write plain-text transcripts without leading [start:end] time ranges.",
     )
+    parser.add_argument(
+        "--omit-txt-speaker-labels",
+        action="store_true",
+        help="Write plain-text transcripts with '-' instead of speaker labels.",
+    )
     return parser
 
 
@@ -177,6 +182,7 @@ def main() -> int:
             person_ner_model=args.person_ner_model,
             term_replacements_path=args.term_replacements_file,
             omit_txt_time_ranges=args.omit_txt_time_ranges,
+            omit_txt_speaker_labels=args.omit_txt_speaker_labels,
         ),
     )
     return 0

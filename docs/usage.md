@@ -41,6 +41,15 @@ python3 -m whisperx_daemon \
   --omit-txt-time-ranges
 ```
 
+Omit speaker labels in TXT output:
+
+```bash
+python3 -m whisperx_daemon \
+  --runtime-dir ./runtime \
+  --once \
+  --omit-txt-speaker-labels
+```
+
 Run on CUDA with lower batch size:
 
 ```bash
