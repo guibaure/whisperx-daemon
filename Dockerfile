@@ -17,17 +17,21 @@ RUN groupadd --gid 10001 whisperx \
         --shell /usr/sbin/nologin \
         whisperx
 
-COPY pyproject.toml README.md /app/
+COPY pyproject.toml uv.lock README.md /app/
 COPY packages/transcript-postprocess /app/packages/transcript-postprocess
-COPY src /app/src
-COPY whisperx_daemon /app/whisperx_daemon
 COPY docker/entrypoint.sh /usr/local/bin/whisperx-daemon-entrypoint
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/app/.venv/bin:${PATH}"
 
-RUN uv pip install --system --no-cache \
-        "/app/packages/transcript-postprocess[ner]" ".[gpu]" \
+RUN uv sync --frozen --extra gpu --no-dev --all-packages --no-install-workspace \
+    && chmod 0755 /usr/local/bin/whisperx-daemon-entrypoint
+
+COPY src /app/src
+COPY whisperx_daemon /app/whisperx_daemon
+
+RUN uv sync --frozen --extra gpu --no-dev --all-packages --no-editable \
     && chmod 0755 /usr/local/bin/whisperx-daemon-entrypoint
 
 RUN mkdir -p /app/runtime \

@@ -3,6 +3,8 @@
 ## Build
 
 The provided image is CUDA-oriented, but it can still run in CPU mode.
+The image uses the repository `uv.lock` during build, so container dependency
+resolution follows the same lockfile as local development and CI.
 
 ```bash
 docker build -t whisperx-daemon:latest .

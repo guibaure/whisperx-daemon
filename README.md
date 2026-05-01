@@ -6,8 +6,9 @@ files, writes JSON and plain-text outputs, archives the original inputs, and
 records job state so unchanged files are not reprocessed accidentally.
 
 It is designed as a production-oriented single-node service baseline, not as a
-distributed platform. The project uses [uv](https://docs.astral.sh/uv/) for
-fast dependency management and virtual environment creation.
+distributed platform. The project is managed with
+[uv](https://docs.astral.sh/uv/): dependencies are declared in
+`pyproject.toml`, resolved in `uv.lock`, and synchronised with `uv sync`.
 
 ## Why `whisperx-daemon`
 
@@ -41,7 +42,7 @@ The main project-specific extension over WhisperX is transcript sanitisation.
 | Dependency | Install |
 |---|---|
 | [uv](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| Python 3.11+ | via system package manager or [python.org](https://www.python.org) |
+| Python 3.11 to 3.13 | via `uv python install 3.11` or [python.org](https://www.python.org) |
 | FFmpeg | `apt install ffmpeg` / `brew install ffmpeg` |
 
 Optional: NVIDIA GPU + driver for CUDA, NVIDIA Container Toolkit for Docker
@@ -53,12 +54,11 @@ GPU passthrough, Hugging Face token for diarisation.
 
 ```bash
 make setup-cpu
-. .venv/bin/activate
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/
 
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --model small \
@@ -70,12 +70,11 @@ python3 -m whisperx_daemon \
 
 ```bash
 make setup-cuda
-. .venv/bin/activate
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/
 
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --model small \
@@ -120,6 +119,10 @@ The repository contains two Python packages:
 
 The second is kept as an explicit dependency boundary so the text
 post-processing logic remains reusable outside the daemon.
+
+`make setup-cpu` and `make setup-cuda` select mutually exclusive `uv` extras.
+This is intentional: CPU and CUDA PyTorch wheels are different runtime
+variants and should not be mixed in the same environment.
 
 ## Documentation
 

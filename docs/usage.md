@@ -5,7 +5,7 @@
 Run once on CPU:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --model small \
@@ -16,7 +16,7 @@ python3 -m whisperx_daemon \
 Run continuously:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --model small \
   --device cpu \
@@ -26,7 +26,7 @@ python3 -m whisperx_daemon \
 Force reprocessing for previously recorded files:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --force-reprocess
@@ -35,7 +35,7 @@ python3 -m whisperx_daemon \
 Omit time ranges in TXT output:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --omit-txt-time-ranges
@@ -44,7 +44,7 @@ python3 -m whisperx_daemon \
 Omit speaker labels in TXT output:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --omit-txt-speaker-labels
@@ -53,7 +53,7 @@ python3 -m whisperx_daemon \
 Run on CUDA with lower batch size:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --model small \
@@ -65,7 +65,7 @@ python3 -m whisperx_daemon \
 Enable diarisation:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --diarize \
@@ -75,7 +75,7 @@ python3 -m whisperx_daemon \
 Enable diarisation with speaker-count hints:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --diarize \
@@ -87,7 +87,7 @@ python3 -m whisperx_daemon \
 Enable pseudonymisation:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --pseudonymize-person-names
@@ -96,7 +96,7 @@ python3 -m whisperx_daemon \
 Use an explicit term-replacement file:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --term-replacements-file ./term-replacements.json

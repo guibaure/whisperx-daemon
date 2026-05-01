@@ -9,6 +9,7 @@ venv/
 
 # uv cache.
 .uv_cache/
+.uv-cache/
 
 # Test and tooling caches.
 .pytest_cache/

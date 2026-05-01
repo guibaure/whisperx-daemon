@@ -7,24 +7,39 @@ name = "whisperx-daemon"
 version = "0.1.0"
 description = "Local-first audio transcription daemon scaffold"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 dependencies = [
-    "whisperx==3.8.4",
+    "transcript-postprocess[ner]",
     "torchcodec>=0.7,<0.8",
 ]
 
+[project.scripts]
+whisperx-daemon = "whisperx_daemon.cli:main"
+
 [project.optional-dependencies]
 cpu = [
+    "whisperx==3.8.4",
     "torch==2.8.0",
     "torchaudio==2.8.0",
 ]
 gpu = [
+    "whisperx==3.8.4",
     "torch==2.8.0",
     "torchaudio==2.8.0",
 ]
+
+[dependency-groups]
 dev = [
     "mypy==1.18.2",
     "ruff==0.12.10",
+]
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "gpu" },
+    ],
 ]
 
 [[tool.uv.index]]
@@ -38,14 +53,18 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
+transcript-postprocess = { workspace = true }
 torch = [
-    { index = "pytorch-cpu", marker = "extra == 'cpu'" },
-    { index = "pytorch-gpu", marker = "extra != 'cpu' and extra == 'gpu'" },
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-gpu", extra = "gpu" },
 ]
 torchaudio = [
-    { index = "pytorch-cpu", marker = "extra == 'cpu'" },
-    { index = "pytorch-gpu", marker = "extra != 'cpu' and extra == 'gpu'" },
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-gpu", extra = "gpu" },
 ]
+
+[tool.uv.workspace]
+members = ["packages/transcript-postprocess"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
