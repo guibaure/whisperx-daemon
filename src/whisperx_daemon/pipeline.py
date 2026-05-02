@@ -206,6 +206,15 @@ class WhisperXTranscriber:
 
         return WhisperXModelSession(self._config, whisperx_module)
 
+    def load_module(self) -> Any:
+        """Return the configured WhisperX module.
+
+        Streaming mode needs explicit access to the module so it can load the
+        ASR model once and reuse it across multiple audio windows.
+        """
+
+        return self._module_loader()
+
     def transcribe_loaded_audio(
         self,
         whisperx_module: Any,
@@ -265,6 +274,16 @@ class WhisperXTranscriber:
         finally:
             del model_a
             self._release_runtime_memory()
+
+    def align_transcript(
+        self,
+        whisperx_module: Any,
+        audio: Any,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Public wrapper for alignment used by streaming orchestration."""
+
+        return self._align_transcript(whisperx_module, audio, result)
 
     def _apply_diarization(
         self,

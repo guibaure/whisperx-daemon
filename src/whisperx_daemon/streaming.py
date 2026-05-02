@@ -8,13 +8,23 @@ transcribe those windows incrementally.
 
 from __future__ import annotations
 
+import importlib
+import json
 import wave
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 from .config import StreamingConfig
+from .pipeline import (
+    TranscriptDocument,
+    WhisperXModelSession,
+    WhisperXTranscriber,
+    build_speaker_index,
+    normalise_segment,
+)
 
 
 class StreamingError(RuntimeError):
@@ -242,3 +252,185 @@ class PcmWaveRecorder:
         """Close the underlying WAV file."""
 
         self._handle.close()
+
+
+def pcm_window_to_float32_audio(window: AudioWindow) -> Any:
+    """Convert signed 16-bit PCM bytes into WhisperX-compatible float audio."""
+
+    numpy_module = importlib.import_module("numpy")
+    samples = numpy_module.frombuffer(window.pcm_bytes, dtype="<i2")
+    return samples.astype("float32") / 32768.0
+
+
+def offset_segment_timestamps(
+    segment: dict[str, Any],
+    offset_seconds: float,
+) -> dict[str, Any]:
+    """Return a segment whose timestamps are relative to the full stream."""
+
+    updated_segment = dict(segment)
+    for field_name in ("start", "end"):
+        value = updated_segment.get(field_name)
+        if isinstance(value, int | float):
+            updated_segment[field_name] = value + offset_seconds
+    return updated_segment
+
+
+class SegmentCommitter:
+    """Commit only stable, non-duplicated segments from overlapping windows."""
+
+    def __init__(self, config: StreamingConfig) -> None:
+        validate_streaming_config(config)
+        self._config = config
+        self._last_committed_end = 0.0
+
+    def commit_segments(
+        self,
+        window: AudioWindow,
+        result: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Return stream-offset segments that are safe to emit."""
+
+        commit_limit = (
+            float("inf")
+            if window.is_final
+            else window.end_seconds - self._config.commit_overlap_seconds
+        )
+        committed_segments: list[dict[str, Any]] = []
+        for raw_segment in result.get("segments", []):
+            if not isinstance(raw_segment, dict):
+                continue
+            offset_segment = offset_segment_timestamps(
+                raw_segment,
+                window.start_seconds,
+            )
+            normalised_segment = normalise_segment(offset_segment)
+            segment_end = normalised_segment.get("end")
+            if not isinstance(segment_end, int | float):
+                continue
+            if segment_end <= self._last_committed_end:
+                continue
+            if segment_end > commit_limit:
+                continue
+            committed_segments.append(normalised_segment)
+            self._last_committed_end = float(segment_end)
+        return committed_segments
+
+
+class StreamingTranscriptAccumulator:
+    """Collect committed stream segments and build a final transcript document."""
+
+    def __init__(self, stream_id: str) -> None:
+        self._stream_id = stream_id
+        self._segments: list[dict[str, Any]] = []
+        self._language: str | None = None
+
+    def extend(self, segments: list[dict[str, Any]], language: str | None) -> None:
+        """Append committed segments and remember the detected language."""
+
+        self._segments.extend(segments)
+        if self._language is None and language:
+            self._language = language
+
+    @property
+    def segments(self) -> list[dict[str, Any]]:
+        """Return a copy of committed segments."""
+
+        return list(self._segments)
+
+    def build_document(self) -> TranscriptDocument:
+        """Build the final stream transcript document from committed segments."""
+
+        text = " ".join(
+            str(segment.get("text", "")).strip()
+            for segment in self._segments
+            if str(segment.get("text", "")).strip()
+        )
+        return TranscriptDocument(
+            source_path=f"stream:{self._stream_id}",
+            generated_at=datetime.now(UTC).isoformat(),
+            status="completed",
+            text=text,
+            language=self._language,
+            segments=self.segments,
+            speakers=build_speaker_index(self.segments),
+        )
+
+
+def build_stream_event(
+    stream_id: str,
+    event_type: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a JSON-serialisable stream event."""
+
+    return {
+        "stream_id": stream_id,
+        "event": event_type,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "payload": payload or {},
+    }
+
+
+class JsonlStreamEventWriter:
+    """Append stream events as newline-delimited JSON."""
+
+    def __init__(self, output_path: Path) -> None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = output_path
+        self._handle = output_path.open("a", encoding="utf-8")
+
+    def write(self, event: dict[str, Any]) -> None:
+        """Write one JSON event and flush it for tailing consumers."""
+
+        self._handle.write(json.dumps(event, sort_keys=True) + "\n")
+        self._handle.flush()
+
+    def close(self) -> None:
+        """Close the event file."""
+
+        self._handle.close()
+
+
+class StreamingWindowTranscriber:
+    """Transcribe audio windows with one reusable WhisperX model session."""
+
+    def __init__(
+        self,
+        transcriber: WhisperXTranscriber,
+        audio_converter: Callable[[AudioWindow], Any] = pcm_window_to_float32_audio,
+    ) -> None:
+        self._transcriber = transcriber
+        self._audio_converter = audio_converter
+        self._whisperx_module: Any | None = None
+        self._model_session: WhisperXModelSession | None = None
+
+    def __enter__(self) -> StreamingWindowTranscriber:
+        self._whisperx_module = self._transcriber.load_module()
+        self._model_session = self._transcriber.open_model_session(
+            self._whisperx_module
+        )
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        if self._model_session is not None:
+            self._model_session.close()
+        self._whisperx_module = None
+        self._model_session = None
+
+    def transcribe_window(self, window: AudioWindow) -> dict[str, Any]:
+        """Transcribe and align one PCM window."""
+
+        if self._whisperx_module is None or self._model_session is None:
+            raise StreamingError("Streaming transcriber has not been started.")
+        audio = self._audio_converter(window)
+        result = self._transcriber.transcribe_loaded_audio(
+            self._whisperx_module,
+            audio,
+            model_session=self._model_session,
+        )
+        return self._transcriber.align_transcript(
+            self._whisperx_module,
+            audio,
+            result,
+        )
