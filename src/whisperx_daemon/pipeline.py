@@ -106,6 +106,35 @@ def load_person_ner_pipeline(model_name: str) -> Callable[[str], list[dict[str, 
         raise TranscriptionError(str(exc)) from exc
 
 
+class WhisperXModelSession:
+    """Loaded WhisperX ASR model reused by batch and streaming workflows."""
+
+    def __init__(self, config: TranscriptionConfig, whisperx_module: Any) -> None:
+        """Load the configured WhisperX model once for repeated transcriptions."""
+
+        self._config = config
+        self._model = whisperx_module.load_model(
+            config.model_name,
+            device=config.device,
+            compute_type=config.compute_type,
+            language=config.language,
+        )
+
+    def transcribe(self, audio: Any) -> dict[str, Any]:
+        """Transcribe an in-memory WhisperX-compatible audio object."""
+
+        return self._model.transcribe(
+            audio,
+            batch_size=self._config.batch_size,
+            language=self._config.language,
+        )
+
+    def close(self) -> None:
+        """Release the model reference so Python can reclaim model memory."""
+
+        del self._model
+
+
 class WhisperXTranscriber:
     """Adapter that isolates WhisperX calls from the watcher logic.
 
@@ -146,19 +175,7 @@ class WhisperXTranscriber:
         whisperx_module = self._module_loader()
         try:
             audio = whisperx_module.load_audio(str(source_path))
-            model = whisperx_module.load_model(
-                self._config.model_name,
-                device=self._config.device,
-                compute_type=self._config.compute_type,
-                language=self._config.language,
-            )
-            result = model.transcribe(
-                audio,
-                batch_size=self._config.batch_size,
-                language=self._config.language,
-            )
-            del model
-            self._release_runtime_memory()
+            result = self.transcribe_loaded_audio(whisperx_module, audio)
             result = self._align_transcript(whisperx_module, audio, result)
             if self._config.diarize:
                 result = self._apply_diarization(whisperx_module, audio, result)
@@ -183,6 +200,37 @@ class WhisperXTranscriber:
                 load_term_replacement_map(self._config.term_replacements_path),
             )
         return transcript_document
+
+    def open_model_session(self, whisperx_module: Any) -> WhisperXModelSession:
+        """Return a reusable WhisperX model session for repeated audio windows."""
+
+        return WhisperXModelSession(self._config, whisperx_module)
+
+    def transcribe_loaded_audio(
+        self,
+        whisperx_module: Any,
+        audio: Any,
+        model_session: WhisperXModelSession | None = None,
+    ) -> dict[str, Any]:
+        """Transcribe an already-loaded audio object.
+
+        Streaming mode passes a preloaded model session across many windows so
+        it does not repeatedly allocate the same WhisperX ASR model.
+        """
+
+        session = model_session or self.open_model_session(whisperx_module)
+        should_close_session = model_session is None
+        try:
+            result = session.transcribe(audio)
+        except Exception:
+            if should_close_session:
+                session.close()
+            raise
+        else:
+            if should_close_session:
+                session.close()
+                self._release_runtime_memory()
+            return result
 
     def _align_transcript(
         self,

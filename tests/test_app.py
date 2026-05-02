@@ -21,7 +21,7 @@ from unittest.mock import patch
 from transcript_postprocess import postprocess_text
 from whisperx_daemon.app import configure_logging, resolve_transcription_config, run
 from whisperx_daemon.cli import build_argument_parser
-from whisperx_daemon.config import RuntimeLayout, TranscriptionConfig
+from whisperx_daemon.config import RuntimeLayout, StreamingConfig, TranscriptionConfig
 from whisperx_daemon.filesystem import ensure_runtime_directories
 from whisperx_daemon.pipeline import (
     TranscriptionError,
@@ -372,6 +372,19 @@ class ConfigResolutionTests(unittest.TestCase):
         self.assertEqual(resolved_config.term_replacements_path, explicit_path)
 
 
+class StreamingConfigTests(unittest.TestCase):
+    def test_streaming_defaults_describe_pcm_stdin_contract(self) -> None:
+        config = StreamingConfig()
+
+        self.assertEqual(config.stream_id, "stream")
+        self.assertIsNone(config.input_path)
+        self.assertEqual(config.sample_rate, 16_000)
+        self.assertEqual(config.channels, 1)
+        self.assertEqual(config.sample_width_bytes, 2)
+        self.assertGreater(config.window_seconds, config.step_seconds)
+        self.assertTrue(config.save_recording)
+
+
 class PersonNerLoaderTests(unittest.TestCase):
     def test_loader_uses_explicit_slow_tokenizer(self) -> None:
         captured_calls: dict[str, object] = {}
@@ -554,6 +567,47 @@ class RuntimeMemoryReleaseTests(unittest.TestCase):
         transcriber.transcribe_file(Path("sample.wav"))
 
         self.assertEqual(transcriber.release_calls, 4)
+
+    def test_transcribe_loaded_audio_can_reuse_model_session(self) -> None:
+        class _CountingWhisperXModule(_FakeWhisperXModule):
+            def __init__(self) -> None:
+                self.load_model_calls = 0
+
+            def load_model(
+                self,
+                model_name: str,
+                device: str,
+                compute_type: str,
+                language: str | None,
+            ) -> _FakeWhisperXModel:
+                self.load_model_calls += 1
+                return _FakeWhisperXModule.load_model(
+                    model_name,
+                    device,
+                    compute_type,
+                    language,
+                )
+
+        module = _CountingWhisperXModule()
+        transcriber = WhisperXTranscriber(config=TranscriptionConfig(language="en"))
+        session = transcriber.open_model_session(module)
+        try:
+            first_result = transcriber.transcribe_loaded_audio(
+                module,
+                "sample.wav",
+                model_session=session,
+            )
+            second_result = transcriber.transcribe_loaded_audio(
+                module,
+                "sample.wav",
+                model_session=session,
+            )
+        finally:
+            session.close()
+
+        self.assertEqual(module.load_model_calls, 1)
+        self.assertEqual(first_result["text"], "Transcript for sample.wav")
+        self.assertEqual(second_result["text"], "Transcript for sample.wav")
 
     def test_transcriber_releases_runtime_memory_after_failure(self) -> None:
         class _ExplodingWhisperXModel:
