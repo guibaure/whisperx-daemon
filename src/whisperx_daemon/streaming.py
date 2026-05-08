@@ -10,20 +10,25 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import wave
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Protocol
 
-from .config import StreamingConfig
+from .config import RuntimeLayout, StreamingConfig, TranscriptionConfig
+from .filesystem import move_runtime_file
 from .pipeline import (
     TranscriptDocument,
+    TranscriptionError,
     WhisperXModelSession,
     WhisperXTranscriber,
     build_speaker_index,
     normalise_segment,
+    write_failure_report,
+    write_transcript_outputs,
 )
 
 
@@ -254,6 +259,35 @@ class PcmWaveRecorder:
         self._handle.close()
 
 
+@dataclass(frozen=True)
+class StreamingRunResult:
+    """Filesystem artefacts produced by one completed streaming session."""
+
+    stream_id: str
+    event_path: Path
+    output_paths: dict[str, Path]
+    archived_recording_path: Path | None
+
+
+class WindowTranscriber(Protocol):
+    """Context-managed object able to transcribe PCM windows."""
+
+    def __enter__(self) -> WindowTranscriber:
+        """Start the reusable window transcription resources."""
+        ...
+
+    def __exit__(self, *_exc_info: object) -> None:
+        """Release reusable window transcription resources."""
+        ...
+
+    def transcribe_window(self, window: AudioWindow) -> dict[str, Any]:
+        """Return the WhisperX-like result for one audio window."""
+        ...
+
+
+WindowTranscriberFactory = Callable[[WhisperXTranscriber], WindowTranscriber]
+
+
 def pcm_window_to_float32_audio(window: AudioWindow) -> Any:
     """Convert signed 16-bit PCM bytes into WhisperX-compatible float audio."""
 
@@ -433,4 +467,271 @@ class StreamingWindowTranscriber:
             self._whisperx_module,
             audio,
             result,
+        )
+
+
+def safe_stream_output_stem(stream_id: str) -> str:
+    """Return a filesystem-safe stem for stream artefact filenames."""
+
+    cleaned = "".join(
+        character if character.isalnum() or character in {"-", "_", "."} else "_"
+        for character in stream_id.strip()
+    ).strip("._")
+    return cleaned or "stream"
+
+
+def _result_language(result: dict[str, Any]) -> str | None:
+    language = result.get("language")
+    if isinstance(language, str) and language:
+        return language
+    return None
+
+
+class StreamingSessionRunner:
+    """Orchestrate one raw PCM stream into live events and final artefacts."""
+
+    def __init__(
+        self,
+        layout: RuntimeLayout,
+        transcription_config: TranscriptionConfig,
+        streaming_config: StreamingConfig,
+        logger: logging.Logger,
+        transcriber: WhisperXTranscriber | None = None,
+        window_transcriber_factory: WindowTranscriberFactory | None = None,
+    ) -> None:
+        validate_streaming_config(streaming_config)
+        self._layout = layout
+        self._transcription_config = transcription_config
+        self._streaming_config = streaming_config
+        self._logger = logger
+        self._transcriber = transcriber or WhisperXTranscriber(transcription_config)
+        self._window_transcriber_factory = window_transcriber_factory or (
+            lambda transcriber: StreamingWindowTranscriber(transcriber)
+        )
+        self._output_stem = safe_stream_output_stem(streaming_config.stream_id)
+
+    def run(self, input_stream: BinaryIO) -> StreamingRunResult:
+        """Consume the stream and write live and final transcription artefacts."""
+
+        if (
+            self._transcription_config.diarize
+            and not self._streaming_config.save_recording
+        ):
+            raise StreamingError(
+                "Stream diarisation requires stream recording to be enabled."
+            )
+
+        event_writer = JsonlStreamEventWriter(self._event_path)
+        recorder: PcmWaveRecorder | None = None
+        try:
+            recorder = self._build_recorder()
+            event_writer.write(
+                build_stream_event(
+                    self._streaming_config.stream_id,
+                    "stream_started",
+                    {
+                        "sample_rate": self._streaming_config.sample_rate,
+                        "channels": self._streaming_config.channels,
+                        "sample_width_bytes": (
+                            self._streaming_config.sample_width_bytes
+                        ),
+                    },
+                )
+            )
+            result = self._run_streaming_transcription(
+                input_stream,
+                event_writer,
+                recorder,
+            )
+            event_writer.write(
+                build_stream_event(
+                    self._streaming_config.stream_id,
+                    "stream_completed",
+                    {
+                        "json_path": str(result.output_paths["json"]),
+                        "txt_path": str(result.output_paths["txt"]),
+                        "event_path": str(result.event_path),
+                        "archived_recording_path": (
+                            str(result.archived_recording_path)
+                            if result.archived_recording_path is not None
+                            else None
+                        ),
+                    },
+                )
+            )
+            return result
+        except (StreamingError, TranscriptionError) as exc:
+            self._handle_failure(exc, event_writer, recorder)
+            raise
+        except Exception as exc:
+            wrapped_error = StreamingError(f"Streaming transcription failed: {exc}")
+            self._handle_failure(wrapped_error, event_writer, recorder)
+            raise wrapped_error from exc
+        finally:
+            event_writer.close()
+
+    @property
+    def _event_path(self) -> Path:
+        return self._layout.output_dir / f"{self._output_stem}.events.jsonl"
+
+    @property
+    def _recording_path(self) -> Path:
+        return self._layout.processing_dir / f"{self._output_stem}.wav"
+
+    def _logical_stream_path(self) -> Path:
+        return Path(f"stream:{self._streaming_config.stream_id}")
+
+    def _build_recorder(self) -> PcmWaveRecorder | None:
+        if not self._streaming_config.save_recording:
+            return None
+        return PcmWaveRecorder(self._recording_path, self._streaming_config)
+
+    def _run_streaming_transcription(
+        self,
+        input_stream: BinaryIO,
+        event_writer: JsonlStreamEventWriter,
+        recorder: PcmWaveRecorder | None,
+    ) -> StreamingRunResult:
+        reader = PcmStreamReader(input_stream, self._streaming_config)
+        window_buffer = AudioWindowBuffer(self._streaming_config)
+        committer = SegmentCommitter(self._streaming_config)
+        accumulator = StreamingTranscriptAccumulator(self._streaming_config.stream_id)
+
+        with self._window_transcriber_factory(self._transcriber) as window_transcriber:
+            for pcm_chunk in reader.iter_chunks():
+                if recorder is not None:
+                    recorder.write(pcm_chunk)
+                self._process_windows(
+                    window_buffer.append(pcm_chunk),
+                    window_transcriber,
+                    committer,
+                    accumulator,
+                    event_writer,
+                )
+            self._process_windows(
+                window_buffer.flush(),
+                window_transcriber,
+                committer,
+                accumulator,
+                event_writer,
+            )
+
+        if recorder is not None:
+            recorder.close()
+            recorder = None
+
+        final_document = self._build_final_document(accumulator)
+        output_paths = write_transcript_outputs(
+            final_document,
+            self._layout.output_dir,
+            include_time_ranges=not self._transcription_config.omit_txt_time_ranges,
+            include_speaker_labels=(
+                not self._transcription_config.omit_txt_speaker_labels
+            ),
+            output_stem=self._output_stem,
+        )
+        archived_recording_path = self._archive_recording_on_success()
+        self._logger.info(
+            "Transcribed stream: %s. Archived recording at %s",
+            self._streaming_config.stream_id,
+            archived_recording_path,
+        )
+        return StreamingRunResult(
+            stream_id=self._streaming_config.stream_id,
+            event_path=self._event_path,
+            output_paths=output_paths,
+            archived_recording_path=archived_recording_path,
+        )
+
+    def _process_windows(
+        self,
+        windows: list[AudioWindow],
+        window_transcriber: WindowTranscriber,
+        committer: SegmentCommitter,
+        accumulator: StreamingTranscriptAccumulator,
+        event_writer: JsonlStreamEventWriter,
+    ) -> None:
+        for window in windows:
+            result = window_transcriber.transcribe_window(window)
+            committed_segments = committer.commit_segments(window, result)
+            if not committed_segments:
+                continue
+            accumulator.extend(committed_segments, _result_language(result))
+            for segment in committed_segments:
+                event_writer.write(
+                    build_stream_event(
+                        self._streaming_config.stream_id,
+                        "segment_final",
+                        {"segment": segment, "language": _result_language(result)},
+                    )
+                )
+
+    def _build_final_document(
+        self,
+        accumulator: StreamingTranscriptAccumulator,
+    ) -> TranscriptDocument:
+        if self._transcription_config.diarize:
+            return self._transcriber.transcribe_file(
+                self._recording_path,
+                logical_source_path=self._logical_stream_path(),
+            )
+        return self._transcriber.postprocess_document(accumulator.build_document())
+
+    def _archive_recording_on_success(self) -> Path | None:
+        if not self._streaming_config.save_recording:
+            return None
+        return move_runtime_file(
+            self._recording_path,
+            self._layout.archive_succeeded_dir,
+        )
+
+    def _handle_failure(
+        self,
+        error: Exception,
+        event_writer: JsonlStreamEventWriter,
+        recorder: PcmWaveRecorder | None,
+    ) -> None:
+        if recorder is not None:
+            recorder.close()
+        failure_source_path = (
+            self._recording_path
+            if self._recording_path.exists()
+            else self._layout.processing_dir / f"{self._output_stem}.stream"
+        )
+        archived_recording_path = self._archive_recording_on_failure()
+        failure_path = write_failure_report(
+            failure_source_path,
+            self._layout.failed_dir,
+            str(error),
+            logical_source_path=self._logical_stream_path(),
+        )
+        event_writer.write(
+            build_stream_event(
+                self._streaming_config.stream_id,
+                "stream_failed",
+                {
+                    "error": str(error),
+                    "failure_path": str(failure_path),
+                    "archived_recording_path": (
+                        str(archived_recording_path)
+                        if archived_recording_path is not None
+                        else None
+                    ),
+                },
+            )
+        )
+        self._logger.error(
+            "Streaming transcription failed for %s: %s",
+            self._streaming_config.stream_id,
+            error,
+        )
+
+    def _archive_recording_on_failure(self) -> Path | None:
+        if not self._streaming_config.save_recording:
+            return None
+        if not self._recording_path.exists():
+            return None
+        return move_runtime_file(
+            self._recording_path,
+            self._layout.archive_failed_dir,
         )

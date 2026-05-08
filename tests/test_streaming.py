@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import struct
 import tempfile
 import unittest
@@ -11,7 +12,9 @@ import wave
 from pathlib import Path
 from typing import Any
 
-from whisperx_daemon.config import StreamingConfig
+from whisperx_daemon.config import RuntimeLayout, StreamingConfig, TranscriptionConfig
+from whisperx_daemon.filesystem import ensure_runtime_directories
+from whisperx_daemon.pipeline import TranscriptDocument, WhisperXTranscriber
 from whisperx_daemon.streaming import (
     AudioWindow,
     AudioWindowBuffer,
@@ -20,11 +23,13 @@ from whisperx_daemon.streaming import (
     PcmWaveRecorder,
     SegmentCommitter,
     StreamingError,
+    StreamingSessionRunner,
     StreamingTranscriptAccumulator,
     StreamingWindowTranscriber,
     build_stream_event,
     offset_segment_timestamps,
     pcm_window_to_float32_audio,
+    safe_stream_output_stem,
     samples_for_seconds,
     validate_streaming_config,
 )
@@ -145,6 +150,9 @@ class PcmWaveRecorderTests(unittest.TestCase):
 
 
 class StreamingTranscriptionPrimitiveTests(unittest.TestCase):
+    def test_safe_stream_output_stem_replaces_path_unsafe_characters(self) -> None:
+        self.assertEqual(safe_stream_output_stem("meeting/live:1"), "meeting_live_1")
+
     def test_pcm_window_to_float32_audio_normalises_int16_samples(self) -> None:
         window = AudioWindow(
             pcm_bytes=_pcm_samples(-32768, 0, 32767),
@@ -326,3 +334,205 @@ class StreamingTranscriptionPrimitiveTests(unittest.TestCase):
         )
         self.assertTrue(fake_transcriber.session.closed)
         self.assertEqual(result["text"], "hello")
+
+
+class StreamingSessionRunnerTests(unittest.TestCase):
+    def test_runner_writes_events_outputs_and_archived_recording(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            layout = RuntimeLayout.from_root(Path(temp_dir) / "runtime")
+            ensure_runtime_directories(layout)
+            fake_window_transcriber = _FakeWindowTranscriber()
+            runner = StreamingSessionRunner(
+                layout=layout,
+                transcription_config=TranscriptionConfig(language="en"),
+                streaming_config=StreamingConfig(
+                    stream_id="meeting/live:1",
+                    sample_rate=4,
+                    window_seconds=1.0,
+                    step_seconds=0.5,
+                    commit_overlap_seconds=0.25,
+                ),
+                logger=logging.getLogger("test-stream-success"),
+                transcriber=WhisperXTranscriber(
+                    TranscriptionConfig(language="en"),
+                    module_loader=lambda: object(),
+                ),
+                window_transcriber_factory=lambda transcriber: fake_window_transcriber,
+            )
+
+            result = runner.run(io.BytesIO(_pcm_samples(0, 1, 2, 3, 4, 5)))
+
+            self.assertEqual(result.stream_id, "meeting/live:1")
+            self.assertTrue(result.output_paths["json"].is_file())
+            self.assertTrue(result.output_paths["txt"].is_file())
+            self.assertEqual(result.event_path.name, "meeting_live_1.events.jsonl")
+            self.assertTrue(
+                (layout.archive_succeeded_dir / "meeting_live_1.wav").is_file()
+            )
+            self.assertFalse((layout.processing_dir / "meeting_live_1.wav").exists())
+
+            payload = json.loads(result.output_paths["json"].read_text("utf-8"))
+            self.assertEqual(payload["source_path"], "stream:meeting/live:1")
+            self.assertEqual(
+                [segment["text"] for segment in payload["segments"]],
+                ["window-0", "window-2", "window-4"],
+            )
+            text_output = result.output_paths["txt"].read_text("utf-8")
+            self.assertIn("[0.000:0.500] UNKNOWN: window-0", text_output)
+
+            events = _read_jsonl_events(result.event_path)
+            self.assertEqual(events[0]["event"], "stream_started")
+            self.assertEqual(events[-1]["event"], "stream_completed")
+            self.assertEqual(
+                [event["event"] for event in events].count("segment_final"),
+                3,
+            )
+            self.assertTrue(fake_window_transcriber.closed)
+
+    def test_runner_records_failure_event_report_and_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            layout = RuntimeLayout.from_root(Path(temp_dir) / "runtime")
+            ensure_runtime_directories(layout)
+            runner = StreamingSessionRunner(
+                layout=layout,
+                transcription_config=TranscriptionConfig(language="en"),
+                streaming_config=StreamingConfig(
+                    stream_id="broken",
+                    sample_rate=4,
+                    window_seconds=1.0,
+                    step_seconds=0.5,
+                    commit_overlap_seconds=0.25,
+                ),
+                logger=logging.getLogger("test-stream-failure"),
+                transcriber=WhisperXTranscriber(
+                    TranscriptionConfig(language="en"),
+                    module_loader=lambda: object(),
+                ),
+                window_transcriber_factory=(
+                    lambda transcriber: _FailingWindowTranscriber()
+                ),
+            )
+
+            with self.assertRaisesRegex(StreamingError, "synthetic stream failure"):
+                runner.run(io.BytesIO(_pcm_samples(0, 1, 2, 3)))
+
+            failure_path = layout.failed_dir / "broken.error.json"
+            self.assertTrue(failure_path.is_file())
+            self.assertTrue((layout.archive_failed_dir / "broken.wav").is_file())
+            events = _read_jsonl_events(layout.output_dir / "broken.events.jsonl")
+            self.assertEqual(events[-1]["event"], "stream_failed")
+            self.assertIn("synthetic stream failure", events[-1]["payload"]["error"])
+
+    def test_runner_uses_final_full_file_transcription_for_diarised_streams(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            layout = RuntimeLayout.from_root(Path(temp_dir) / "runtime")
+            ensure_runtime_directories(layout)
+            fake_transcriber = _FinalFileTranscriber()
+            runner = StreamingSessionRunner(
+                layout=layout,
+                transcription_config=TranscriptionConfig(
+                    language="en",
+                    diarize=True,
+                    hf_token="hf-token",
+                ),
+                streaming_config=StreamingConfig(
+                    stream_id="diarised",
+                    sample_rate=4,
+                    window_seconds=1.0,
+                    step_seconds=0.5,
+                    commit_overlap_seconds=0.25,
+                ),
+                logger=logging.getLogger("test-stream-diarised"),
+                transcriber=fake_transcriber,  # type: ignore[arg-type]
+                window_transcriber_factory=lambda transcriber: _FakeWindowTranscriber(),
+            )
+
+            result = runner.run(io.BytesIO(_pcm_samples(0, 1, 2, 3)))
+
+            payload = json.loads(result.output_paths["json"].read_text("utf-8"))
+            self.assertEqual(payload["text"], "final diarised transcript")
+            self.assertEqual(payload["segments"][0]["speaker"], "SPEAKER_00")
+            self.assertEqual(
+                fake_transcriber.logical_source_path,
+                Path("stream:diarised"),
+            )
+
+
+class _FakeWindowTranscriber:
+    def __init__(self) -> None:
+        self.closed = False
+        self.windows: list[AudioWindow] = []
+
+    def __enter__(self) -> _FakeWindowTranscriber:
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self.closed = True
+
+    def transcribe_window(self, window: AudioWindow) -> dict[str, Any]:
+        self.windows.append(window)
+        return {
+            "language": "en",
+            "segments": [
+                {
+                    "id": len(self.windows) - 1,
+                    "start": 0.0,
+                    "end": 0.5,
+                    "text": f"window-{window.start_sample}",
+                }
+            ],
+        }
+
+
+class _FailingWindowTranscriber:
+    def __enter__(self) -> _FailingWindowTranscriber:
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        return None
+
+    def transcribe_window(self, window: AudioWindow) -> dict[str, Any]:
+        raise RuntimeError("synthetic stream failure")
+
+
+class _FinalFileTranscriber:
+    def __init__(self) -> None:
+        self.source_path: Path | None = None
+        self.logical_source_path: Path | None = None
+
+    def transcribe_file(
+        self,
+        source_path: Path,
+        logical_source_path: Path | None = None,
+    ) -> TranscriptDocument:
+        self.source_path = source_path
+        self.logical_source_path = logical_source_path
+        return TranscriptDocument(
+            source_path=str(logical_source_path),
+            generated_at="2026-01-01T00:00:00+00:00",
+            status="completed",
+            text="final diarised transcript",
+            language="en",
+            segments=[
+                {
+                    "id": 0,
+                    "start": 0.0,
+                    "end": 1.0,
+                    "speaker": "SPEAKER_00",
+                    "text": "final diarised transcript",
+                }
+            ],
+            speakers=[{"label": "SPEAKER_00"}],
+        )
+
+    def postprocess_document(
+        self,
+        transcript_document: TranscriptDocument,
+    ) -> TranscriptDocument:
+        raise AssertionError("Diarised streams should use full-file transcription.")
+
+
+def _read_jsonl_events(path: Path) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]

@@ -184,22 +184,38 @@ class WhisperXTranscriber:
         finally:
             self._release_runtime_memory()
 
-        transcript_document = build_transcript_document(
-            source_path=source_path,
-            logical_source_path=logical_source_path,
-            result=result,
+        return self.postprocess_document(
+            build_transcript_document(
+                source_path=source_path,
+                logical_source_path=logical_source_path,
+                result=result,
+            )
         )
+
+    def postprocess_document(
+        self,
+        transcript_document: TranscriptDocument,
+    ) -> TranscriptDocument:
+        """Apply configured transcript post-processing to a document.
+
+        File mode builds the document from a full WhisperX result. Streaming
+        mode builds a document from committed window segments. Both paths need
+        the same pseudonymisation and proper-noun replacement behaviour, so the
+        policy lives in one public method on the transcriber adapter.
+        """
+
+        processed_document = transcript_document
         if self._config.pseudonymize_person_names:
-            transcript_document = pseudonymize_transcript_document(
-                transcript_document,
+            processed_document = pseudonymize_transcript_document(
+                processed_document,
                 self._person_ner_pipeline_loader(self._config.person_ner_model),
             )
         if self._config.term_replacements_path is not None:
-            transcript_document = replace_terms_in_transcript_document(
-                transcript_document,
+            processed_document = replace_terms_in_transcript_document(
+                processed_document,
                 load_term_replacement_map(self._config.term_replacements_path),
             )
-        return transcript_document
+        return processed_document
 
     def open_model_session(self, whisperx_module: Any) -> WhisperXModelSession:
         """Return a reusable WhisperX model session for repeated audio windows."""
@@ -553,7 +569,11 @@ def build_speaker_index(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return speakers
 
 
-def write_transcript_output(document: TranscriptDocument, output_dir: Path) -> Path:
+def write_transcript_output(
+    document: TranscriptDocument,
+    output_dir: Path,
+    output_stem: str | None = None,
+) -> Path:
     """Write the transcript JSON into the output directory.
 
     Returns:
@@ -561,7 +581,7 @@ def write_transcript_output(document: TranscriptDocument, output_dir: Path) -> P
         the SQLite job table as the canonical success output.
     """
 
-    output_path = output_dir / f"{Path(document.source_path).stem}.json"
+    output_path = output_dir / f"{output_stem or Path(document.source_path).stem}.json"
     write_json_payload(output_path, document.to_dict())
     return output_path
 
@@ -571,6 +591,7 @@ def write_text_output(
     output_dir: Path,
     include_time_ranges: bool = True,
     include_speaker_labels: bool = True,
+    output_stem: str | None = None,
 ) -> Path:
     """Write the plain-text transcript into the output directory.
 
@@ -578,7 +599,7 @@ def write_text_output(
     segment with timing and speaker metadata.
     """
 
-    output_path = output_dir / f"{Path(document.source_path).stem}.txt"
+    output_path = output_dir / f"{output_stem or Path(document.source_path).stem}.txt"
     output_path.write_text(
         build_plain_text_transcript(
             document,
@@ -649,6 +670,7 @@ def write_transcript_outputs(
     output_dir: Path,
     include_time_ranges: bool = True,
     include_speaker_labels: bool = True,
+    output_stem: str | None = None,
 ) -> dict[str, Path]:
     """Write all transcript artefacts and return their paths.
 
@@ -657,12 +679,13 @@ def write_transcript_outputs(
     """
 
     return {
-        "json": write_transcript_output(document, output_dir),
+        "json": write_transcript_output(document, output_dir, output_stem=output_stem),
         "txt": write_text_output(
             document,
             output_dir,
             include_time_ranges=include_time_ranges,
             include_speaker_labels=include_speaker_labels,
+            output_stem=output_stem,
         ),
     }
 

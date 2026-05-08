@@ -9,11 +9,14 @@ behaviour is easy to follow and easy to exercise in tests.
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
+from typing import BinaryIO, cast
 
-from .config import RuntimeLayout, TranscriptionConfig
+from .config import RuntimeLayout, StreamingConfig, TranscriptionConfig
 from .filesystem import ensure_runtime_directories
 from .state import JobStore
+from .streaming import StreamingSessionRunner
 from .watcher import WatcherConfig, WorkspaceWatcher
 
 
@@ -104,6 +107,58 @@ def run(
 
     logger.info("Starting watch loop.")
     watcher.watch_forever()
+
+
+def run_stream(
+    runtime_dir: Path,
+    streaming_config: StreamingConfig,
+    transcription_config: TranscriptionConfig | None = None,
+    input_stream: BinaryIO | None = None,
+) -> None:
+    """Initialise the runtime directory and process one raw PCM stream.
+
+    Args:
+        runtime_dir: Root directory for stream artefacts, logs, and state.
+        streaming_config: Stream identity, PCM format, and windowing settings.
+        transcription_config: Optional WhisperX-specific runtime settings. A
+            default configuration is created when this argument is omitted.
+        input_stream: Optional binary stream override used by tests. When
+            omitted, the configured input path is opened or stdin is consumed.
+    """
+
+    layout = RuntimeLayout.from_root(runtime_dir)
+    ensure_runtime_directories(layout)
+
+    logger = configure_logging(layout.logs_dir)
+    store = JobStore(layout.state_db_path)
+    store.initialise()
+    resolved_transcription_config = resolve_transcription_config(
+        transcription_config or TranscriptionConfig(),
+        layout,
+    )
+
+    logger.info("Runtime root: %s", layout.root)
+    logger.info("Starting stream transcription: %s", streaming_config.stream_id)
+
+    owned_input_stream: BinaryIO | None = None
+    if input_stream is None:
+        if streaming_config.input_path is None:
+            input_stream = cast(BinaryIO, sys.stdin.buffer)
+        else:
+            owned_input_stream = streaming_config.input_path.open("rb")
+            input_stream = owned_input_stream
+
+    try:
+        runner = StreamingSessionRunner(
+            layout=layout,
+            transcription_config=resolved_transcription_config,
+            streaming_config=streaming_config,
+            logger=logger,
+        )
+        runner.run(input_stream)
+    finally:
+        if owned_input_stream is not None:
+            owned_input_stream.close()
 
 
 def resolve_transcription_config(

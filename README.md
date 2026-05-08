@@ -21,6 +21,7 @@ does not provide out of the box.
 | Pseudonymisation | Detects explicit person-name mentions and rewrites them to deterministic pseudonyms |
 | Anonymisation-oriented post-processing | Supports privacy-oriented transcript sanitisation workflows, while remaining explicit that this is not a formal anonymisation guarantee |
 | Proper-noun replacement | Rewrites configured sensitive terms after pseudonymisation with longest-match handling |
+| Streaming transcription | Consumes raw PCM streams from stdin or pipes and emits live JSONL events plus final JSON/TXT outputs |
 | Managed runtime workflow | Watches `runtime/input`, processes stable files, writes outputs, and archives originals |
 | Idempotent processing | Tracks path and digest in SQLite so unchanged files are not reprocessed accidentally |
 | Production-shaped outputs | Writes structured JSON, readable TXT, and structured failure reports |
@@ -101,6 +102,29 @@ For CUDA containers add `--gpus all` and
 `--user "$(id -u):$(id -g)"` to prevent root-owned files. See
 [`docs/docker.md`](./docs/docker.md) for full details.
 
+### Streaming
+
+```bash
+ffmpeg -hide_banner -loglevel error \
+  -i example.mp3 \
+  -f s16le \
+  -acodec pcm_s16le \
+  -ac 1 \
+  -ar 16000 \
+  - \
+| uv run whisperx-daemon \
+    --stream \
+    --runtime-dir ./runtime \
+    --stream-id example-live \
+    --model small \
+    --device cpu \
+    --compute-type int8
+```
+
+Stream mode accepts raw mono `s16le` PCM, emits JSONL live events, and writes
+the same final JSON/TXT transcript formats as file mode. See
+[`docs/streaming.md`](./docs/streaming.md) for the full contract.
+
 ## Development
 
 ```bash
@@ -131,6 +155,7 @@ variants and should not be mixed in the same environment.
 | [Getting Started](./docs/getting-started.md) | Zero-to-first-run for CPU, CUDA, and watch mode |
 | [Installation](./docs/installation.md) | Dependency pinning, local bootstrap, package layout |
 | [Usage](./docs/usage.md) | Common CLI workflows and operational examples |
+| [Streaming](./docs/streaming.md) | Raw PCM stream input, JSONL events, and final stream outputs |
 | [Configuration](./docs/configuration.md) | Runtime directory contract, lifecycle, flag reference |
 | [Output](./docs/output.md) | JSON, TXT, and failure-report contracts |
 | [Post-Processing](./docs/post-processing.md) | Pseudonymisation, term replacement, standalone usage |

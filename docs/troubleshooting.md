@@ -80,3 +80,38 @@ This feature depends on the selected NER model. If names are missed:
 - verify that the text contains explicit person names rather than pronouns or
   indirect references
 - remember that this is best-effort NER, not full coreference resolution
+
+## `PCM input ended with a partial audio frame`
+
+Stream mode expects signed 16-bit PCM, so every audio frame is exactly two
+bytes. This error means the stream ended with an odd number of bytes or another
+format was supplied accidentally.
+
+Use an adapter command that enforces the stream contract:
+
+```bash
+ffmpeg -hide_banner -loglevel error \
+  -i input.mp3 \
+  -f s16le \
+  -acodec pcm_s16le \
+  -ac 1 \
+  -ar 16000 \
+  -
+```
+
+## `Stream diarisation requires stream recording to be enabled`
+
+Stream diarisation is a final full-file pass. Keep stream recording enabled, or
+remove `--diarize`. `--no-stream-recording` is only suitable when final
+diarisation is not required.
+
+## No live streaming events appear
+
+Check:
+
+- the command includes `--stream`
+- Docker stream commands include `-i`
+- the upstream producer is writing raw PCM data
+- the window length is not too large for the amount of audio already received
+- `runtime/output/<stream-id>.events.jsonl` is being tailed, not the final TXT
+  file

@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 from transcript_postprocess import postprocess_text
 from whisperx_daemon.app import configure_logging, resolve_transcription_config, run
-from whisperx_daemon.cli import build_argument_parser
+from whisperx_daemon.cli import build_argument_parser, main
 from whisperx_daemon.config import RuntimeLayout, StreamingConfig, TranscriptionConfig
 from whisperx_daemon.filesystem import ensure_runtime_directories
 from whisperx_daemon.pipeline import (
@@ -786,6 +786,66 @@ class CliFlagTests(unittest.TestCase):
     def test_omit_txt_speaker_labels_flag_can_be_enabled(self) -> None:
         args = build_argument_parser().parse_args(["--omit-txt-speaker-labels"])
         self.assertTrue(args.omit_txt_speaker_labels)
+
+    def test_stream_flags_parse_stream_mode_settings(self) -> None:
+        args = build_argument_parser().parse_args(
+            [
+                "--stream",
+                "--stream-input",
+                "/tmp/microphone.pcm",
+                "--stream-id",
+                "meeting",
+                "--stream-sample-rate",
+                "16000",
+                "--stream-window-seconds",
+                "20",
+                "--stream-step-seconds",
+                "4",
+                "--stream-commit-overlap-seconds",
+                "1.5",
+                "--no-stream-recording",
+            ]
+        )
+
+        self.assertTrue(args.stream)
+        self.assertEqual(args.stream_input, "/tmp/microphone.pcm")
+        self.assertEqual(args.stream_id, "meeting")
+        self.assertEqual(args.stream_sample_rate, 16_000)
+        self.assertEqual(args.stream_window_seconds, 20.0)
+        self.assertEqual(args.stream_step_seconds, 4.0)
+        self.assertEqual(args.stream_commit_overlap_seconds, 1.5)
+        self.assertTrue(args.no_stream_recording)
+
+    def test_stream_mode_dispatches_to_stream_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "sys.argv",
+                [
+                    "whisperx-daemon",
+                    "--stream",
+                    "--runtime-dir",
+                    temp_dir,
+                    "--stream-input",
+                    "-",
+                    "--stream-id",
+                    "meeting",
+                    "--diarize",
+                ],
+            ):
+                with patch.dict(os.environ, {"HF_TOKEN": "hf-env"}, clear=False):
+                    with patch("whisperx_daemon.cli.run") as run_mock:
+                        with patch("whisperx_daemon.cli.run_stream") as run_stream_mock:
+                            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        run_mock.assert_not_called()
+        run_stream_mock.assert_called_once()
+        call_kwargs = run_stream_mock.call_args.kwargs
+        self.assertEqual(call_kwargs["runtime_dir"], Path(temp_dir))
+        self.assertEqual(call_kwargs["streaming_config"].stream_id, "meeting")
+        self.assertIsNone(call_kwargs["streaming_config"].input_path)
+        self.assertTrue(call_kwargs["transcription_config"].diarize)
+        self.assertEqual(call_kwargs["transcription_config"].hf_token, "hf-env")
 
 
 class PipelineIntegrationTests(unittest.TestCase):

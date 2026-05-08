@@ -116,6 +116,7 @@ class PackagingContractTests(unittest.TestCase):
             "getting-started.md",
             "installation.md",
             "usage.md",
+            "streaming.md",
             "configuration.md",
             "output.md",
             "post-processing.md",

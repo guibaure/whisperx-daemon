@@ -61,6 +61,11 @@ Failure path:
 input -> processing -> failed + archive/failed
 ```
 
+Stream mode uses the same runtime root but does not scan `input/`. It consumes
+stdin or `--stream-input`, writes live events and final transcripts to
+`output/`, records the incoming PCM stream as a WAV file in `processing/`, and
+archives that recording under `archive/succeeded/` or `archive/failed/`.
+
 ## Idempotency
 
 The unchanged-file check uses:
@@ -92,6 +97,28 @@ safely. It does not determine whether a file changed.
   Process the current queue once and exit.
 - `--force-reprocess`
   Reprocess files even when the recorded path and digest match.
+
+### Streaming Control
+
+- `--stream`
+  Consume raw PCM audio from stdin or `--stream-input` instead of watching
+  `runtime/input`.
+- `--stream-input PATH`
+  Raw PCM stream input path. Use `-` or omit the flag to read from stdin.
+- `--stream-id ID`
+  Stable identifier used for stream output filenames and JSONL events.
+  Default: `stream`.
+- `--stream-sample-rate INTEGER`
+  Raw PCM sample rate in Hz. Default: `16000`.
+- `--stream-window-seconds SECONDS`
+  Length of each transcription window. Default: `30.0`.
+- `--stream-step-seconds SECONDS`
+  Distance between successive transcription windows. Default: `5.0`.
+- `--stream-commit-overlap-seconds SECONDS`
+  Trailing overlap kept uncommitted until a later window. Default: `2.0`.
+- `--no-stream-recording`
+  Disable WAV archival of the incoming stream. This cannot be used with
+  `--diarize`, because final diarisation requires the recorded WAV.
 
 ### WhisperX Configuration
 
