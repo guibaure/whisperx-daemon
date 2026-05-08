@@ -18,7 +18,8 @@ lives in `uv.lock`.
   local environment.
 - `[project.optional-dependencies].cpu`: WhisperX with CPU PyTorch wheels.
 - `[project.optional-dependencies].gpu`: WhisperX with CUDA PyTorch wheels.
-- `[dependency-groups].dev`: development tools such as `mypy` and `ruff`.
+- `[dependency-groups].dev`: development tools such as `mypy`, `ruff`, and
+  `coverage`.
 - `[tool.uv.workspace]`: monorepo membership for `transcript-postprocess`.
 - `[tool.uv].conflicts`: declares `cpu` and `gpu` as mutually exclusive runtime
   extras, because the PyTorch wheel variants cannot coexist in one environment.

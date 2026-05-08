@@ -65,8 +65,16 @@ class PackagingContractTests(unittest.TestCase):
         dev_deps = pyproject_payload["dependency-groups"]["dev"]
         dev_text = " ".join(dev_deps)
 
+        self.assertIn("coverage", dev_text)
         self.assertIn("mypy", dev_text)
         self.assertIn("ruff", dev_text)
+
+    def test_makefile_declares_coverage_target(self) -> None:
+        makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+
+        self.assertIn("coverage:", makefile_text)
+        self.assertIn("coverage run -m unittest discover -s tests -v", makefile_text)
+        self.assertIn("coverage report", makefile_text)
 
     def test_pyproject_declares_uv_workspace(self) -> None:
         pyproject_payload = tomllib.loads(

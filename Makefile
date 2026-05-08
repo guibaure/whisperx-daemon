@@ -6,7 +6,7 @@ UV_LINK_MODE ?= copy
 export UV_CACHE_DIR
 export UV_LINK_MODE
 
-.PHONY: help sync-cpu sync-cuda setup-cpu setup-cuda test lint format format-check typecheck check
+.PHONY: help sync-cpu sync-cuda setup-cpu setup-cuda test coverage lint format format-check typecheck check
 
 help:
 	@printf '%s\n' \
@@ -16,6 +16,7 @@ help:
 		'  make setup-cpu  Alias for make sync-cpu' \
 		'  make setup-cuda Alias for make sync-cuda' \
 		'  make test       Run the repository test suite against the two source roots' \
+		'  make coverage   Run tests with branch coverage enforcement' \
 		'  make lint       Run Ruff lint checks' \
 		'  make format     Apply Ruff lint fixes where safe, then format the repository' \
 		'  make format-check Run Ruff formatting checks' \
@@ -35,6 +36,10 @@ setup-cuda: sync-cuda
 test:
 	PYTHONPATH=src:packages/transcript-postprocess/src $(PYTHON) -m unittest discover -s tests -v
 
+coverage:
+	PYTHONPATH=src:packages/transcript-postprocess/src uv run --group dev coverage run -m unittest discover -s tests -v
+	uv run --group dev coverage report
+
 lint:
 	uv run --group dev ruff check .
 
@@ -48,4 +53,4 @@ format-check:
 typecheck:
 	uv run --group dev mypy
 
-check: lint format-check typecheck test
+check: lint format-check typecheck test coverage

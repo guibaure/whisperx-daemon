@@ -30,6 +30,7 @@ gpu = [
 
 [dependency-groups]
 dev = [
+    "coverage[toml]==7.13.5",
     "mypy==1.18.2",
     "ruff==0.12.10",
 ]
@@ -79,6 +80,24 @@ src = ["src", "packages/transcript-postprocess/src", "tests"]
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "UP"]
+
+[tool.coverage.run]
+branch = true
+source = [
+    "src/whisperx_daemon",
+    "packages/transcript-postprocess/src/transcript_postprocess",
+]
+
+[tool.coverage.report]
+fail_under = 84
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
 
 [tool.mypy]
 python_version = "3.11"

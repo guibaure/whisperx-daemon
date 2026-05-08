@@ -73,6 +73,28 @@ jobs:
       - name: Run mypy
         run: make typecheck
 
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Synchronise uv environment
+        run: uv sync --python 3.11 --group dev --all-packages
+
+      - name: Run branch coverage checks
+        run: make coverage
+
   package:
     name: Package Build
     runs-on: ubuntu-latest
