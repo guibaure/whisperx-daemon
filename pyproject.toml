@@ -87,9 +87,13 @@ source = [
     "src/whisperx_daemon",
     "packages/transcript-postprocess/src/transcript_postprocess",
 ]
+omit = [
+    "*/__init__.py",
+    "*/__main__.py",
+]
 
 [tool.coverage.report]
-fail_under = 84
+fail_under = 100
 precision = 2
 show_missing = true
 skip_covered = false

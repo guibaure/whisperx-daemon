@@ -274,15 +274,15 @@ class WindowTranscriber(Protocol):
 
     def __enter__(self) -> WindowTranscriber:
         """Start the reusable window transcription resources."""
-        ...
+        ...  # pragma: no cover
 
     def __exit__(self, *_exc_info: object) -> None:
         """Release reusable window transcription resources."""
-        ...
+        ...  # pragma: no cover
 
     def transcribe_window(self, window: AudioWindow) -> dict[str, Any]:
         """Return the WhisperX-like result for one audio window."""
-        ...
+        ...  # pragma: no cover
 
 
 WindowTranscriberFactory = Callable[[WhisperXTranscriber], WindowTranscriber]
