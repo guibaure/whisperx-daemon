@@ -6,7 +6,7 @@ UV_LINK_MODE ?= copy
 export UV_CACHE_DIR
 export UV_LINK_MODE
 
-.PHONY: help sync-cpu sync-cuda setup-cpu setup-cuda test coverage lint format format-check typecheck check
+.PHONY: help sync-cpu sync-cuda setup-cpu setup-cuda test coverage docker-smoke lint format format-check typecheck check
 
 help:
 	@printf '%s\n' \
@@ -17,6 +17,7 @@ help:
 		'  make setup-cuda Alias for make sync-cuda' \
 		'  make test       Run the repository test suite against the two source roots' \
 		'  make coverage   Run tests with branch coverage enforcement' \
+		'  make docker-smoke Build and run disposable Docker smoke-test containers' \
 		'  make lint       Run Ruff lint checks' \
 		'  make format     Apply Ruff lint fixes where safe, then format the repository' \
 		'  make format-check Run Ruff formatting checks' \
@@ -39,6 +40,9 @@ test:
 coverage:
 	PYTHONPATH=src:packages/transcript-postprocess/src uv run --group dev coverage run -m unittest discover -s tests -v
 	uv run --group dev coverage report
+
+docker-smoke:
+	sh scripts/docker-smoke-test.sh
 
 lint:
 	uv run --group dev ruff check .

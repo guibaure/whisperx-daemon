@@ -131,10 +131,11 @@ the same final JSON/TXT transcript formats as file mode. See
 make setup-cpu    # or make setup-cuda
 make check        # lint + format-check + typecheck + test
 make coverage     # test suite with branch coverage enforcement
+make docker-smoke # disposable Docker build/run smoke test
 ```
 
 Individual targets: `make lint`, `make format`, `make typecheck`, `make test`,
-`make coverage`.
+`make coverage`, `make docker-smoke`.
 
 The repository contains two Python packages:
 

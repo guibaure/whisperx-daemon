@@ -10,6 +10,21 @@ resolution follows the same lockfile as local development and CI.
 docker build -t whisperx-daemon:latest .
 ```
 
+For development validation, use the disposable smoke-test target:
+
+```bash
+make docker-smoke
+```
+
+The smoke test builds `whisperx-daemon:test`, runs short-lived test containers,
+checks the CLI and entrypoint override paths, runs an empty CPU-mode daemon
+pass against a bind-mounted runtime directory, and removes the test image and
+containers when it exits. To include a CUDA availability check, run:
+
+```bash
+WHISPERX_DAEMON_DOCKER_TEST_GPU=1 make docker-smoke
+```
+
 ## CPU Run
 
 ```bash

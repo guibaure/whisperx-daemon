@@ -76,6 +76,18 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("coverage run -m unittest discover -s tests -v", makefile_text)
         self.assertIn("coverage report", makefile_text)
 
+    def test_makefile_declares_docker_smoke_target(self) -> None:
+        makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+        smoke_script_text = (
+            REPOSITORY_ROOT / "scripts" / "docker-smoke-test.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("docker-smoke:", makefile_text)
+        self.assertIn("sh scripts/docker-smoke-test.sh", makefile_text)
+        self.assertIn("whisperx-daemon:test", smoke_script_text)
+        self.assertIn('docker build -t "$IMAGE_TAG"', smoke_script_text)
+        self.assertIn('docker image rm "$IMAGE_TAG"', smoke_script_text)
+
     def test_pyproject_declares_uv_workspace(self) -> None:
         pyproject_payload = tomllib.loads(
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
