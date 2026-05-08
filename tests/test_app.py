@@ -20,8 +20,8 @@ from unittest.mock import patch
 
 from transcript_postprocess import postprocess_text
 from whisperx_daemon.app import configure_logging, resolve_transcription_config, run
-from whisperx_daemon.cli import build_argument_parser
-from whisperx_daemon.config import RuntimeLayout, TranscriptionConfig
+from whisperx_daemon.cli import build_argument_parser, main
+from whisperx_daemon.config import RuntimeLayout, StreamingConfig, TranscriptionConfig
 from whisperx_daemon.filesystem import ensure_runtime_directories
 from whisperx_daemon.pipeline import (
     TranscriptionError,
@@ -372,6 +372,19 @@ class ConfigResolutionTests(unittest.TestCase):
         self.assertEqual(resolved_config.term_replacements_path, explicit_path)
 
 
+class StreamingConfigTests(unittest.TestCase):
+    def test_streaming_defaults_describe_pcm_stdin_contract(self) -> None:
+        config = StreamingConfig()
+
+        self.assertEqual(config.stream_id, "stream")
+        self.assertIsNone(config.input_path)
+        self.assertEqual(config.sample_rate, 16_000)
+        self.assertEqual(config.channels, 1)
+        self.assertEqual(config.sample_width_bytes, 2)
+        self.assertGreater(config.window_seconds, config.step_seconds)
+        self.assertTrue(config.save_recording)
+
+
 class PersonNerLoaderTests(unittest.TestCase):
     def test_loader_uses_explicit_slow_tokenizer(self) -> None:
         captured_calls: dict[str, object] = {}
@@ -555,6 +568,47 @@ class RuntimeMemoryReleaseTests(unittest.TestCase):
 
         self.assertEqual(transcriber.release_calls, 4)
 
+    def test_transcribe_loaded_audio_can_reuse_model_session(self) -> None:
+        class _CountingWhisperXModule(_FakeWhisperXModule):
+            def __init__(self) -> None:
+                self.load_model_calls = 0
+
+            def load_model(
+                self,
+                model_name: str,
+                device: str,
+                compute_type: str,
+                language: str | None,
+            ) -> _FakeWhisperXModel:
+                self.load_model_calls += 1
+                return _FakeWhisperXModule.load_model(
+                    model_name,
+                    device,
+                    compute_type,
+                    language,
+                )
+
+        module = _CountingWhisperXModule()
+        transcriber = WhisperXTranscriber(config=TranscriptionConfig(language="en"))
+        session = transcriber.open_model_session(module)
+        try:
+            first_result = transcriber.transcribe_loaded_audio(
+                module,
+                "sample.wav",
+                model_session=session,
+            )
+            second_result = transcriber.transcribe_loaded_audio(
+                module,
+                "sample.wav",
+                model_session=session,
+            )
+        finally:
+            session.close()
+
+        self.assertEqual(module.load_model_calls, 1)
+        self.assertEqual(first_result["text"], "Transcript for sample.wav")
+        self.assertEqual(second_result["text"], "Transcript for sample.wav")
+
     def test_transcriber_releases_runtime_memory_after_failure(self) -> None:
         class _ExplodingWhisperXModel:
             def transcribe(
@@ -725,6 +779,74 @@ class CliFlagTests(unittest.TestCase):
         args = build_argument_parser().parse_args(["--omit-txt-time-ranges"])
         self.assertTrue(args.omit_txt_time_ranges)
 
+    def test_omit_txt_speaker_labels_flag_defaults_to_false(self) -> None:
+        args = build_argument_parser().parse_args([])
+        self.assertFalse(args.omit_txt_speaker_labels)
+
+    def test_omit_txt_speaker_labels_flag_can_be_enabled(self) -> None:
+        args = build_argument_parser().parse_args(["--omit-txt-speaker-labels"])
+        self.assertTrue(args.omit_txt_speaker_labels)
+
+    def test_stream_flags_parse_stream_mode_settings(self) -> None:
+        args = build_argument_parser().parse_args(
+            [
+                "--stream",
+                "--stream-input",
+                "/tmp/microphone.pcm",
+                "--stream-id",
+                "meeting",
+                "--stream-sample-rate",
+                "16000",
+                "--stream-window-seconds",
+                "20",
+                "--stream-step-seconds",
+                "4",
+                "--stream-commit-overlap-seconds",
+                "1.5",
+                "--no-stream-recording",
+            ]
+        )
+
+        self.assertTrue(args.stream)
+        self.assertEqual(args.stream_input, "/tmp/microphone.pcm")
+        self.assertEqual(args.stream_id, "meeting")
+        self.assertEqual(args.stream_sample_rate, 16_000)
+        self.assertEqual(args.stream_window_seconds, 20.0)
+        self.assertEqual(args.stream_step_seconds, 4.0)
+        self.assertEqual(args.stream_commit_overlap_seconds, 1.5)
+        self.assertTrue(args.no_stream_recording)
+
+    def test_stream_mode_dispatches_to_stream_bootstrap(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with patch(
+                "sys.argv",
+                [
+                    "whisperx-daemon",
+                    "--stream",
+                    "--runtime-dir",
+                    temp_dir,
+                    "--stream-input",
+                    "-",
+                    "--stream-id",
+                    "meeting",
+                    "--diarize",
+                ],
+            ):
+                with patch.dict(os.environ, {"HF_TOKEN": "hf-env"}, clear=False):
+                    with patch("whisperx_daemon.cli.run") as run_mock:
+                        with patch("whisperx_daemon.cli.run_stream") as run_stream_mock:
+                            exit_code = main()
+
+        self.assertEqual(exit_code, 0)
+        run_mock.assert_not_called()
+        run_stream_mock.assert_called_once()
+        call_kwargs = run_stream_mock.call_args.kwargs
+        self.assertEqual(call_kwargs["runtime_dir"], Path(temp_dir))
+        self.assertEqual(call_kwargs["streaming_config"].stream_id, "meeting")
+        self.assertIsNone(call_kwargs["streaming_config"].input_path)
+        self.assertTrue(call_kwargs["transcription_config"].diarize)
+        self.assertEqual(call_kwargs["transcription_config"].hf_token, "hf-env")
+
 
 class PipelineIntegrationTests(unittest.TestCase):
     def test_shared_postprocess_package_can_be_used_directly(self) -> None:
@@ -892,6 +1014,49 @@ class PipelineIntegrationTests(unittest.TestCase):
             self.assertEqual(processed_files, [source_path])
             text_output = (layout.output_dir / "sample.txt").read_text(encoding="utf-8")
             self.assertEqual(text_output, "UNKNOWN: Hello world")
+
+    def test_text_output_can_omit_speaker_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runtime_dir = Path(temp_dir) / "runtime"
+            layout = RuntimeLayout.from_root(runtime_dir)
+            ensure_runtime_directories(layout)
+            source_path = layout.input_dir / "sample.wav"
+            source_path.write_bytes(b"audio-bytes")
+
+            stable_timestamp = time.time() - 10
+            os.utime(source_path, (stable_timestamp, stable_timestamp))
+
+            transcription_config = TranscriptionConfig(
+                language="en",
+                diarize=True,
+                hf_token="hf-token",
+                min_speakers=1,
+                max_speakers=2,
+                omit_txt_time_ranges=True,
+                omit_txt_speaker_labels=True,
+            )
+            watcher = WorkspaceWatcher(
+                layout=layout,
+                store=JobStore(layout.state_db_path),
+                config=WatcherConfig(poll_interval=0.1, stability_window=0.0),
+                transcription_config=transcription_config,
+                logger=configure_logging(layout.logs_dir),
+                transcriber=WhisperXTranscriber(
+                    config=transcription_config,
+                    module_loader=lambda: _FakeWhisperXModule(),
+                ),
+            )
+            watcher._store.initialise()
+
+            processed_files = watcher.run_once()
+
+            self.assertEqual(processed_files, [source_path])
+            payload = json.loads(
+                (layout.output_dir / "sample.json").read_text(encoding="utf-8")
+            )
+            text_output = (layout.output_dir / "sample.txt").read_text(encoding="utf-8")
+            self.assertEqual(payload["segments"][0]["speaker"], "SPEAKER_00")
+            self.assertEqual(text_output, "- Hello world")
 
     def test_diarization_attaches_speaker_labels(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

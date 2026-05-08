@@ -5,7 +5,7 @@
 Enable diarisation with:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --diarize \
@@ -30,7 +30,7 @@ If diarisation is requested without a token, the daemon fails fast.
 Enable pseudonymisation with:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --pseudonymize-person-names
@@ -91,9 +91,9 @@ Behaviour:
 The reusable post-processing logic is also available independently:
 
 ```bash
-uv pip install -e ./packages/transcript-postprocess[ner]
+make setup-cpu
 
-python3 -m transcript_postprocess \
+uv run transcript-postprocess \
   --input-file ./raw.txt \
   --output-file ./sanitised.txt \
   --pseudonymize-person-names \
@@ -104,7 +104,7 @@ For backwards compatibility, the historical daemon-local entrypoint also still
 exists:
 
 ```bash
-python3 -m whisperx_daemon.standalone \
+uv run python -m whisperx_daemon.standalone \
   --input-file ./raw.txt \
   --output-file ./sanitised.txt
 ```

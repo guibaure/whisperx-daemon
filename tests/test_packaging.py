@@ -41,7 +41,7 @@ class PackagingContractTests(unittest.TestCase):
         dependencies = pyproject_payload["project"]["dependencies"]
         dep_text = " ".join(dependencies)
 
-        for expected in ("whisperx", "torchcodec"):
+        for expected in ("transcript-postprocess", "torchcodec"):
             self.assertIn(expected, dep_text)
 
     def test_pyproject_declares_cpu_and_gpu_extras(self) -> None:
@@ -53,19 +53,78 @@ class PackagingContractTests(unittest.TestCase):
 
         for group in ("cpu", "gpu"):
             group_text = " ".join(extras[group])
+            self.assertIn("whisperx", group_text)
             self.assertIn("torch", group_text)
             self.assertIn("torchaudio", group_text)
 
-    def test_pyproject_declares_dev_optional_dependencies(self) -> None:
+    def test_pyproject_declares_dev_dependency_group(self) -> None:
         pyproject_payload = tomllib.loads(
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
 
-        dev_deps = pyproject_payload["project"]["optional-dependencies"]["dev"]
+        dev_deps = pyproject_payload["dependency-groups"]["dev"]
         dev_text = " ".join(dev_deps)
 
+        self.assertIn("coverage", dev_text)
         self.assertIn("mypy", dev_text)
         self.assertIn("ruff", dev_text)
+
+    def test_makefile_declares_coverage_target(self) -> None:
+        makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+
+        self.assertIn("coverage:", makefile_text)
+        self.assertIn("coverage run -m unittest discover -s tests -v", makefile_text)
+        self.assertIn("coverage report", makefile_text)
+
+    def test_makefile_declares_docker_smoke_target(self) -> None:
+        makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+        smoke_script_text = (
+            REPOSITORY_ROOT / "scripts" / "docker-smoke-test.sh"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("docker-smoke:", makefile_text)
+        self.assertIn("sh scripts/docker-smoke-test.sh", makefile_text)
+        self.assertIn("whisperx-daemon:test", smoke_script_text)
+        self.assertIn('docker build -t "$IMAGE_TAG"', smoke_script_text)
+        self.assertIn('docker image rm "$IMAGE_TAG"', smoke_script_text)
+        self.assertIn("--entrypoint nvidia-smi", smoke_script_text)
+        self.assertIn("NVIDIA_VISIBLE_DEVICES", smoke_script_text)
+        self.assertIn("PyTorch CUDA unavailable", smoke_script_text)
+
+    def test_pyproject_declares_uv_workspace(self) -> None:
+        pyproject_payload = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["workspace"]["members"],
+            ["packages/transcript-postprocess"],
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["sources"]["transcript-postprocess"],
+            {"workspace": True},
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["sources"]["torch"],
+            [
+                {"index": "pytorch-cpu", "extra": "cpu"},
+                {"index": "pytorch-gpu", "extra": "gpu"},
+            ],
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["sources"]["torchaudio"],
+            [
+                {"index": "pytorch-cpu", "extra": "cpu"},
+                {"index": "pytorch-gpu", "extra": "gpu"},
+            ],
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["conflicts"],
+            [[{"extra": "cpu"}, {"extra": "gpu"}]],
+        )
+
+    def test_uv_lock_exists(self) -> None:
+        self.assertTrue((REPOSITORY_ROOT / "uv.lock").is_file())
 
     def test_project_readmes_exist(self) -> None:
         self.assertTrue((REPOSITORY_ROOT / "README.md").is_file())
@@ -80,6 +139,7 @@ class PackagingContractTests(unittest.TestCase):
             "getting-started.md",
             "installation.md",
             "usage.md",
+            "streaming.md",
             "configuration.md",
             "output.md",
             "post-processing.md",
@@ -124,10 +184,13 @@ class PackagingContractTests(unittest.TestCase):
             "COPY packages/transcript-postprocess /app/packages/transcript-postprocess",
             dockerfile_text,
         )
+        self.assertIn("COPY pyproject.toml uv.lock README.md /app/", dockerfile_text)
         self.assertIn(
-            '"/app/packages/transcript-postprocess[ner]"',
+            "uv sync --frozen --extra gpu --no-dev --all-packages",
             dockerfile_text,
         )
+        self.assertIn("--no-install-workspace", dockerfile_text)
+        self.assertIn("--no-editable", dockerfile_text)
 
     def test_dockerfile_uses_arbitrary_uid_safe_runtime_paths(self) -> None:
         dockerfile_text = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")

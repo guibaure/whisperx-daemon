@@ -33,18 +33,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install lightweight CI dependencies
-        run: |
-          uv pip install --system build -e "./packages/transcript-postprocess" -e ".[dev]"
+      - name: Synchronise uv environment
+        run: uv sync --python ${{ matrix.python-version }} --group dev --all-packages
 
       - name: Run repository test suite
         run: make test
 
       - name: Verify standalone CLI help
         run: |
-          python -m whisperx_daemon --help
-          python -m whisperx_daemon.standalone --help
-          python -m transcript_postprocess --help
+          uv run python -m whisperx_daemon --help
+          uv run python -m whisperx_daemon.standalone --help
+          uv run python -m transcript_postprocess --help
 
   quality:
     name: Quality Checks
@@ -62,9 +61,8 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install lightweight CI dependencies
-        run: |
-          uv pip install --system build -e "./packages/transcript-postprocess" -e ".[dev]"
+      - name: Synchronise uv environment
+        run: uv sync --python 3.11 --group dev --all-packages
 
       - name: Run Ruff lint checks
         run: make lint
@@ -74,6 +72,28 @@ jobs:
 
       - name: Run mypy
         run: make typecheck
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Synchronise uv environment
+        run: uv sync --python 3.11 --group dev --all-packages
+
+      - name: Run branch coverage checks
+        run: make coverage
 
   package:
     name: Package Build
@@ -91,12 +111,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Synchronise uv environment
+        run: uv sync --python 3.11 --group dev --all-packages
+
       - name: Build whisperx-daemon distribution
-        run: uv build .
+        run: uv build --package whisperx-daemon
 
       - name: Build transcript-postprocess distribution
-        working-directory: packages/transcript-postprocess
-        run: uv build .
+        run: uv build --package transcript-postprocess
 
   docker:
     name: Docker Build

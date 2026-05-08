@@ -5,7 +5,7 @@ This guide takes a clean checkout to a first successful transcription.
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- Python `3.11` or newer
+- Python `3.11`, `3.12`, or `3.13`
 - FFmpeg installed on the host
 - enough free disk space for model caches, logs, outputs, and archives
 
@@ -19,12 +19,11 @@ Optional:
 
 ```bash
 make setup-cpu
-. .venv/bin/activate
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/
 
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --model small \
@@ -47,12 +46,11 @@ If transcription fails:
 
 ```bash
 make setup-cuda
-. .venv/bin/activate
 
 mkdir -p runtime/input
 cp /path/to/example.mp3 runtime/input/
 
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --once \
   --model small \
@@ -75,7 +73,7 @@ If you hit CUDA out-of-memory errors:
 Run without `--once` to keep scanning `runtime/input`:
 
 ```bash
-python3 -m whisperx_daemon \
+uv run whisperx-daemon \
   --runtime-dir ./runtime \
   --model small \
   --device cpu \

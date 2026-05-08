@@ -22,9 +22,12 @@
 - `app.py`
   Runtime bootstrap, logging configuration, and watcher construction.
 - `config.py`
-  `TranscriptionConfig` and `RuntimeLayout`.
+  `TranscriptionConfig`, `StreamingConfig`, and `RuntimeLayout`.
 - `watcher.py`
   Polling loop, lifecycle handling, and per-file orchestration.
+- `streaming.py`
+  Raw PCM stream ingestion, overlapping windowing, live JSONL events, final
+  stream output orchestration, and stream recording archival.
 - `filesystem.py`
   Runtime directory creation, digest computation, and file moves.
 - `state.py`
@@ -52,6 +55,26 @@ input scan
   -> archive input
   -> update SQLite state
 ```
+
+## Streaming Flow
+
+```text
+stdin or stream input path
+  -> PCM frame validation
+  -> overlapping window buffer
+  -> reusable WhisperX model session
+  -> alignment per window
+  -> stable segment commit
+  -> JSONL event emission
+  -> final JSON/TXT output
+  -> optional final full-file diarisation
+  -> archive stream recording
+```
+
+File mode and stream mode share the same transcription adapter and output
+formatters. They deliberately keep separate orchestration paths because stable
+file processing and indefinite stream processing have different lifecycle and
+failure semantics.
 
 ## Design Intent
 

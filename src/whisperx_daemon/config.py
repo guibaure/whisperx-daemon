@@ -36,6 +36,29 @@ class TranscriptionConfig:
     person_ner_model: str = DEFAULT_PERSON_NER_MODEL
     term_replacements_path: Path | None = None
     omit_txt_time_ranges: bool = False
+    omit_txt_speaker_labels: bool = False
+
+
+@dataclass(frozen=True)
+class StreamingConfig:
+    """Runtime settings for raw PCM stream transcription.
+
+    Stream mode intentionally starts with a UNIX-friendly input contract:
+    callers provide 16 kHz mono signed 16-bit PCM through stdin or a named pipe.
+    Tools such as ``ffmpeg`` or ``arecord`` can adapt microphones, files, or
+    network streams into that stable format without adding device-specific
+    dependencies to this project.
+    """
+
+    stream_id: str = "stream"
+    input_path: Path | None = None
+    sample_rate: int = 16_000
+    channels: int = 1
+    sample_width_bytes: int = 2
+    window_seconds: float = 30.0
+    step_seconds: float = 5.0
+    commit_overlap_seconds: float = 2.0
+    save_recording: bool = True
 
 
 @dataclass(frozen=True)

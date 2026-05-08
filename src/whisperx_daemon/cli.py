@@ -11,8 +11,8 @@ import argparse
 import os
 from pathlib import Path
 
-from .app import run
-from .config import TranscriptionConfig
+from .app import run, run_stream
+from .config import StreamingConfig, TranscriptionConfig
 
 
 def build_argument_parser() -> argparse.ArgumentParser:
@@ -62,6 +62,58 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help=(
             "Process stable files even when the same path and content digest "
             "were already recorded."
+        ),
+    )
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help=(
+            "Read raw PCM audio from stdin or --stream-input instead of "
+            "watching runtime/input."
+        ),
+    )
+    parser.add_argument(
+        "--stream-input",
+        default="-",
+        help=(
+            "Raw PCM stream input path. Use '-' or omit the flag to read from stdin."
+        ),
+    )
+    parser.add_argument(
+        "--stream-id",
+        default="stream",
+        help="Stable identifier used for stream output filenames and events.",
+    )
+    parser.add_argument(
+        "--stream-sample-rate",
+        type=int,
+        default=16_000,
+        help="Raw PCM stream sample rate in Hz. Defaults to 16000.",
+    )
+    parser.add_argument(
+        "--stream-window-seconds",
+        type=float,
+        default=30.0,
+        help="Streaming transcription window length in seconds.",
+    )
+    parser.add_argument(
+        "--stream-step-seconds",
+        type=float,
+        default=5.0,
+        help="Seconds between successive streaming transcription windows.",
+    )
+    parser.add_argument(
+        "--stream-commit-overlap-seconds",
+        type=float,
+        default=2.0,
+        help="Trailing window overlap kept uncommitted until a later window.",
+    )
+    parser.add_argument(
+        "--no-stream-recording",
+        action="store_true",
+        help=(
+            "Do not archive the incoming stream as WAV. This is incompatible "
+            "with --diarize."
         ),
     )
     parser.add_argument(
@@ -139,6 +191,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write plain-text transcripts without leading [start:end] time ranges.",
     )
+    parser.add_argument(
+        "--omit-txt-speaker-labels",
+        action="store_true",
+        help="Write plain-text transcripts with '-' instead of speaker labels.",
+    )
     return parser
 
 
@@ -157,26 +214,52 @@ def main() -> int:
         or os.environ.get("HF_TOKEN")
         or os.environ.get("HUGGINGFACE_TOKEN")
     )
+    transcription_config = TranscriptionConfig(
+        model_name=args.model,
+        device=args.device,
+        language=args.language,
+        compute_type=args.compute_type,
+        batch_size=args.batch_size,
+        diarize=args.diarize,
+        hf_token=hf_token,
+        min_speakers=args.min_speakers,
+        max_speakers=args.max_speakers,
+        pseudonymize_person_names=args.pseudonymize_person_names,
+        person_ner_model=args.person_ner_model,
+        term_replacements_path=args.term_replacements_file,
+        omit_txt_time_ranges=args.omit_txt_time_ranges,
+        omit_txt_speaker_labels=args.omit_txt_speaker_labels,
+    )
+    if args.stream:
+        run_stream(
+            runtime_dir=args.runtime_dir,
+            streaming_config=StreamingConfig(
+                stream_id=args.stream_id,
+                input_path=_resolve_stream_input_path(args.stream_input),
+                sample_rate=args.stream_sample_rate,
+                window_seconds=args.stream_window_seconds,
+                step_seconds=args.stream_step_seconds,
+                commit_overlap_seconds=args.stream_commit_overlap_seconds,
+                save_recording=not args.no_stream_recording,
+            ),
+            transcription_config=transcription_config,
+        )
+        return 0
+
     run(
         runtime_dir=args.runtime_dir,
         poll_interval=args.poll_interval,
         stability_window=args.stability_window,
         run_once=args.once,
         force_reprocess=args.force_reprocess,
-        transcription_config=TranscriptionConfig(
-            model_name=args.model,
-            device=args.device,
-            language=args.language,
-            compute_type=args.compute_type,
-            batch_size=args.batch_size,
-            diarize=args.diarize,
-            hf_token=hf_token,
-            min_speakers=args.min_speakers,
-            max_speakers=args.max_speakers,
-            pseudonymize_person_names=args.pseudonymize_person_names,
-            person_ner_model=args.person_ner_model,
-            term_replacements_path=args.term_replacements_file,
-            omit_txt_time_ranges=args.omit_txt_time_ranges,
-        ),
+        transcription_config=transcription_config,
     )
     return 0
+
+
+def _resolve_stream_input_path(raw_value: str) -> Path | None:
+    """Return ``None`` for stdin or a concrete stream input path."""
+
+    if raw_value == "-":
+        return None
+    return Path(raw_value)

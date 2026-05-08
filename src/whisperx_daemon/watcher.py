@@ -118,6 +118,9 @@ class WorkspaceWatcher:
                 transcript_document,
                 self._layout.output_dir,
                 include_time_ranges=not self._transcription_config.omit_txt_time_ranges,
+                include_speaker_labels=(
+                    not self._transcription_config.omit_txt_speaker_labels
+                ),
             )
             archived_audio_path = move_runtime_file(
                 processing_path,

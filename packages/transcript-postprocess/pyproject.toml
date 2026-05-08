@@ -7,7 +7,7 @@ name = "transcript-postprocess"
 version = "0.1.0"
 description = "Reusable transcript pseudonymisation and term replacement tools"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 
 [project.optional-dependencies]
 ner = [

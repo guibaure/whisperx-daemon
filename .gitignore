@@ -9,11 +9,13 @@ venv/
 
 # uv cache.
 .uv_cache/
+.uv-cache/
 
 # Test and tooling caches.
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.docker-smoke-runtime/
 .vscode/
 .codex
 

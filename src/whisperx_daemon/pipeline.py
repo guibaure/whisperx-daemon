@@ -106,6 +106,35 @@ def load_person_ner_pipeline(model_name: str) -> Callable[[str], list[dict[str, 
         raise TranscriptionError(str(exc)) from exc
 
 
+class WhisperXModelSession:
+    """Loaded WhisperX ASR model reused by batch and streaming workflows."""
+
+    def __init__(self, config: TranscriptionConfig, whisperx_module: Any) -> None:
+        """Load the configured WhisperX model once for repeated transcriptions."""
+
+        self._config = config
+        self._model = whisperx_module.load_model(
+            config.model_name,
+            device=config.device,
+            compute_type=config.compute_type,
+            language=config.language,
+        )
+
+    def transcribe(self, audio: Any) -> dict[str, Any]:
+        """Transcribe an in-memory WhisperX-compatible audio object."""
+
+        return self._model.transcribe(
+            audio,
+            batch_size=self._config.batch_size,
+            language=self._config.language,
+        )
+
+    def close(self) -> None:
+        """Release the model reference so Python can reclaim model memory."""
+
+        del self._model
+
+
 class WhisperXTranscriber:
     """Adapter that isolates WhisperX calls from the watcher logic.
 
@@ -146,19 +175,7 @@ class WhisperXTranscriber:
         whisperx_module = self._module_loader()
         try:
             audio = whisperx_module.load_audio(str(source_path))
-            model = whisperx_module.load_model(
-                self._config.model_name,
-                device=self._config.device,
-                compute_type=self._config.compute_type,
-                language=self._config.language,
-            )
-            result = model.transcribe(
-                audio,
-                batch_size=self._config.batch_size,
-                language=self._config.language,
-            )
-            del model
-            self._release_runtime_memory()
+            result = self.transcribe_loaded_audio(whisperx_module, audio)
             result = self._align_transcript(whisperx_module, audio, result)
             if self._config.diarize:
                 result = self._apply_diarization(whisperx_module, audio, result)
@@ -167,22 +184,78 @@ class WhisperXTranscriber:
         finally:
             self._release_runtime_memory()
 
-        transcript_document = build_transcript_document(
-            source_path=source_path,
-            logical_source_path=logical_source_path,
-            result=result,
+        return self.postprocess_document(
+            build_transcript_document(
+                source_path=source_path,
+                logical_source_path=logical_source_path,
+                result=result,
+            )
         )
+
+    def postprocess_document(
+        self,
+        transcript_document: TranscriptDocument,
+    ) -> TranscriptDocument:
+        """Apply configured transcript post-processing to a document.
+
+        File mode builds the document from a full WhisperX result. Streaming
+        mode builds a document from committed window segments. Both paths need
+        the same pseudonymisation and proper-noun replacement behaviour, so the
+        policy lives in one public method on the transcriber adapter.
+        """
+
+        processed_document = transcript_document
         if self._config.pseudonymize_person_names:
-            transcript_document = pseudonymize_transcript_document(
-                transcript_document,
+            processed_document = pseudonymize_transcript_document(
+                processed_document,
                 self._person_ner_pipeline_loader(self._config.person_ner_model),
             )
         if self._config.term_replacements_path is not None:
-            transcript_document = replace_terms_in_transcript_document(
-                transcript_document,
+            processed_document = replace_terms_in_transcript_document(
+                processed_document,
                 load_term_replacement_map(self._config.term_replacements_path),
             )
-        return transcript_document
+        return processed_document
+
+    def open_model_session(self, whisperx_module: Any) -> WhisperXModelSession:
+        """Return a reusable WhisperX model session for repeated audio windows."""
+
+        return WhisperXModelSession(self._config, whisperx_module)
+
+    def load_module(self) -> Any:
+        """Return the configured WhisperX module.
+
+        Streaming mode needs explicit access to the module so it can load the
+        ASR model once and reuse it across multiple audio windows.
+        """
+
+        return self._module_loader()
+
+    def transcribe_loaded_audio(
+        self,
+        whisperx_module: Any,
+        audio: Any,
+        model_session: WhisperXModelSession | None = None,
+    ) -> dict[str, Any]:
+        """Transcribe an already-loaded audio object.
+
+        Streaming mode passes a preloaded model session across many windows so
+        it does not repeatedly allocate the same WhisperX ASR model.
+        """
+
+        session = model_session or self.open_model_session(whisperx_module)
+        should_close_session = model_session is None
+        try:
+            result = session.transcribe(audio)
+        except Exception:
+            if should_close_session:
+                session.close()
+            raise
+        else:
+            if should_close_session:
+                session.close()
+                self._release_runtime_memory()
+            return result
 
     def _align_transcript(
         self,
@@ -217,6 +290,16 @@ class WhisperXTranscriber:
         finally:
             del model_a
             self._release_runtime_memory()
+
+    def align_transcript(
+        self,
+        whisperx_module: Any,
+        audio: Any,
+        result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Public wrapper for alignment used by streaming orchestration."""
+
+        return self._align_transcript(whisperx_module, audio, result)
 
     def _apply_diarization(
         self,
@@ -486,7 +569,11 @@ def build_speaker_index(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return speakers
 
 
-def write_transcript_output(document: TranscriptDocument, output_dir: Path) -> Path:
+def write_transcript_output(
+    document: TranscriptDocument,
+    output_dir: Path,
+    output_stem: str | None = None,
+) -> Path:
     """Write the transcript JSON into the output directory.
 
     Returns:
@@ -494,7 +581,7 @@ def write_transcript_output(document: TranscriptDocument, output_dir: Path) -> P
         the SQLite job table as the canonical success output.
     """
 
-    output_path = output_dir / f"{Path(document.source_path).stem}.json"
+    output_path = output_dir / f"{output_stem or Path(document.source_path).stem}.json"
     write_json_payload(output_path, document.to_dict())
     return output_path
 
@@ -503,6 +590,8 @@ def write_text_output(
     document: TranscriptDocument,
     output_dir: Path,
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
+    output_stem: str | None = None,
 ) -> Path:
     """Write the plain-text transcript into the output directory.
 
@@ -510,9 +599,13 @@ def write_text_output(
     segment with timing and speaker metadata.
     """
 
-    output_path = output_dir / f"{Path(document.source_path).stem}.txt"
+    output_path = output_dir / f"{output_stem or Path(document.source_path).stem}.txt"
     output_path.write_text(
-        build_plain_text_transcript(document, include_time_ranges=include_time_ranges),
+        build_plain_text_transcript(
+            document,
+            include_time_ranges=include_time_ranges,
+            include_speaker_labels=include_speaker_labels,
+        ),
         encoding="utf-8",
     )
     return output_path
@@ -521,6 +614,7 @@ def write_text_output(
 def build_plain_text_transcript(
     document: TranscriptDocument,
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
 ) -> str:
     """Render one plain-text line per segment with timing and speaker metadata.
 
@@ -529,7 +623,11 @@ def build_plain_text_transcript(
     """
 
     formatted_segments = [
-        format_plain_text_segment(segment, include_time_ranges=include_time_ranges)
+        format_plain_text_segment(
+            segment,
+            include_time_ranges=include_time_ranges,
+            include_speaker_labels=include_speaker_labels,
+        )
         for segment in document.segments
         if str(segment.get("text", "")).strip()
     ]
@@ -541,16 +639,18 @@ def build_plain_text_transcript(
 def format_plain_text_segment(
     segment: dict[str, Any],
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
 ) -> str:
     """Format a segment for the plain-text transcript output."""
 
     speaker = str(segment.get("speaker") or "UNKNOWN")
     text = str(segment.get("text", "")).strip()
+    speaker_prefix = f"{speaker}:" if include_speaker_labels else "-"
     if not include_time_ranges:
-        return f"{speaker}: {text}"
+        return f"{speaker_prefix} {text}"
     start = format_timestamp(segment.get("start"))
     end = format_timestamp(segment.get("end"))
-    return f"[{start}:{end}] {speaker}: {text}"
+    return f"[{start}:{end}] {speaker_prefix} {text}"
 
 
 def format_timestamp(value: Any) -> str:
@@ -569,6 +669,8 @@ def write_transcript_outputs(
     document: TranscriptDocument,
     output_dir: Path,
     include_time_ranges: bool = True,
+    include_speaker_labels: bool = True,
+    output_stem: str | None = None,
 ) -> dict[str, Path]:
     """Write all transcript artefacts and return their paths.
 
@@ -577,11 +679,13 @@ def write_transcript_outputs(
     """
 
     return {
-        "json": write_transcript_output(document, output_dir),
+        "json": write_transcript_output(document, output_dir, output_stem=output_stem),
         "txt": write_text_output(
             document,
             output_dir,
             include_time_ranges=include_time_ranges,
+            include_speaker_labels=include_speaker_labels,
+            output_stem=output_stem,
         ),
     }
 
