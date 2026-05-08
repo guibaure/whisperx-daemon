@@ -87,6 +87,9 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("whisperx-daemon:test", smoke_script_text)
         self.assertIn('docker build -t "$IMAGE_TAG"', smoke_script_text)
         self.assertIn('docker image rm "$IMAGE_TAG"', smoke_script_text)
+        self.assertIn("--entrypoint nvidia-smi", smoke_script_text)
+        self.assertIn("NVIDIA_VISIBLE_DEVICES", smoke_script_text)
+        self.assertIn("PyTorch CUDA unavailable", smoke_script_text)
 
     def test_pyproject_declares_uv_workspace(self) -> None:
         pyproject_payload = tomllib.loads(

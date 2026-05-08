@@ -25,6 +25,12 @@ containers when it exits. To include a CUDA availability check, run:
 WHISPERX_DAEMON_DOCKER_TEST_GPU=1 make docker-smoke
 ```
 
+The CUDA smoke path first checks `nvidia-smi`, then checks PyTorch CUDA
+initialisation. If `nvidia-smi` works but PyTorch reports CUDA as unavailable,
+inspect the host NVIDIA Container Toolkit configuration. In particular,
+`NVIDIA_VISIBLE_DEVICES=void` inside the container indicates a host runtime
+injection problem rather than a daemon CLI problem.
+
 ## CPU Run
 
 ```bash

@@ -91,9 +91,16 @@ if [ "$RUN_GPU_CHECK" = "1" ]; then
         --rm \
         --gpus all \
         --name "$GPU_CONTAINER" \
+        --entrypoint nvidia-smi \
+        "$IMAGE_TAG" >/dev/null
+
+    docker run \
+        --rm \
+        --gpus all \
+        --name "$GPU_CONTAINER" \
         --entrypoint python \
         "$IMAGE_TAG" \
-        -c 'import torch; raise SystemExit(0 if torch.cuda.is_available() else 1)'
+        -c 'import os, sys, torch; print("NVIDIA_VISIBLE_DEVICES", os.environ.get("NVIDIA_VISIBLE_DEVICES")); print("CUDA_VISIBLE_DEVICES", os.environ.get("CUDA_VISIBLE_DEVICES")); print("torch", torch.__version__); print("torch_cuda", torch.version.cuda); available = torch.cuda.is_available(); print("torch_cuda_available", available); print("torch_cuda_device_count", torch.cuda.device_count()); print("torch_cuda_device", torch.cuda.get_device_name(0) if available else "unavailable"); sys.exit(0 if available else "PyTorch CUDA unavailable although nvidia-smi succeeded; inspect host NVIDIA Container Toolkit runtime configuration.")'
 fi
 
 printf '%s\n' "Docker smoke validation passed for $IMAGE_TAG"
