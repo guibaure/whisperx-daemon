@@ -69,6 +69,19 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("mypy", dev_text)
         self.assertIn("ruff", dev_text)
 
+    def test_pyproject_mypy_scope_includes_critical_runtime_modules(self) -> None:
+        pyproject_payload = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+
+        mypy_files = pyproject_payload["tool"]["mypy"]["files"]
+
+        self.assertIn("src/whisperx_daemon/pipeline.py", mypy_files)
+        self.assertIn(
+            "packages/transcript-postprocess/src/transcript_postprocess/core.py",
+            mypy_files,
+        )
+
     def test_makefile_declares_coverage_target(self) -> None:
         makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
 

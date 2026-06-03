@@ -110,10 +110,12 @@ files = [
     "src/whisperx_daemon/cli.py",
     "src/whisperx_daemon/config.py",
     "src/whisperx_daemon/filesystem.py",
+    "src/whisperx_daemon/pipeline.py",
     "src/whisperx_daemon/state.py",
     "src/whisperx_daemon/streaming.py",
     "src/whisperx_daemon/watcher.py",
     "packages/transcript-postprocess/src/transcript_postprocess/cli.py",
+    "packages/transcript-postprocess/src/transcript_postprocess/core.py",
 ]
 check_untyped_defs = true
 disallow_incomplete_defs = true

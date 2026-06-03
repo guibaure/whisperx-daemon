@@ -9,19 +9,34 @@ from __future__ import annotations
 import importlib
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 DEFAULT_PERSON_NER_MODEL = "Davlan/xlm-roberta-base-ner-hrl"
 PERSON_ENTITY_JOINER_PATTERN = re.compile(r"[ \t'’\-–]*")
+
+
+class PersonEntity(TypedDict, total=False):
+    """Subset of token-classification entity fields used by the package."""
+
+    entity_group: str
+    entity: str
+    word: str
+    start: int
+    end: int
+
+
+PersonNerPipeline = Callable[[str], list[PersonEntity]]
+PersonNerPipelineLoader = Callable[[str], PersonNerPipeline]
+TermReplacementEntries = Iterable[tuple[object, object]]
 
 
 class PostprocessError(RuntimeError):
     """Raised when standalone transcript post-processing cannot complete."""
 
 
-def load_person_ner_pipeline(model_name: str) -> Callable[[str], list[dict[str, Any]]]:
+def load_person_ner_pipeline(model_name: str) -> PersonNerPipeline:
     """Load the configured Hugging Face NER pipeline lazily."""
 
     try:
@@ -60,8 +75,7 @@ def postprocess_text(
     pseudonymize_person_names: bool = False,
     person_ner_model: str = DEFAULT_PERSON_NER_MODEL,
     term_replacements_path: Path | None = None,
-    person_ner_pipeline_loader: Callable[[str], Callable[[str], list[dict[str, Any]]]]
-    | None = None,
+    person_ner_pipeline_loader: PersonNerPipelineLoader | None = None,
 ) -> str:
     """Apply person-name pseudonymisation and configured term replacement."""
 
@@ -114,7 +128,7 @@ def load_term_replacement_map(replacements_path: Path) -> dict[str, str]:
 
 
 def normalise_term_replacement_entries(
-    entries: Any,
+    entries: TermReplacementEntries,
     replacements_path: Path,
 ) -> dict[str, str]:
     """Validate and normalise raw term-replacement entries."""
@@ -150,7 +164,7 @@ def capitalise_proper_noun(value: str) -> str:
 
 def build_person_replacement_map_from_fragments(
     text_fragments: list[str],
-    person_ner_pipeline: Callable[[str], list[dict[str, Any]]],
+    person_ner_pipeline: PersonNerPipeline,
 ) -> dict[str, str]:
     """Build a stable replacement map from smaller text fragments."""
 
@@ -167,7 +181,7 @@ def build_person_replacement_map_from_fragments(
 
 def build_person_replacement_map(
     text: str,
-    person_ner_pipeline: Callable[[str], list[dict[str, Any]]],
+    person_ner_pipeline: PersonNerPipeline,
 ) -> dict[str, str]:
     """Detect person entities and assign deterministic pseudonyms."""
 
@@ -208,7 +222,7 @@ def assign_person_pseudonyms(detected_person_names: list[str]) -> dict[str, str]
 
 def iter_detected_person_names(
     text: str,
-    person_ner_pipeline: Callable[[str], list[dict[str, Any]]],
+    person_ner_pipeline: PersonNerPipeline,
 ) -> list[str]:
     """Return normalised person-entity strings in first-appearance order."""
 
@@ -224,7 +238,7 @@ def iter_detected_person_names(
 
 def iter_person_name_candidates(
     text: str,
-    entities: list[dict[str, Any]],
+    entities: list[PersonEntity],
 ) -> list[str]:
     """Return person-name candidates in pipeline order."""
 
@@ -248,7 +262,7 @@ def iter_person_name_candidates(
 
 def extract_person_name_candidate(
     text: str,
-    entities: list[dict[str, Any]],
+    entities: list[PersonEntity],
     start_index: int,
 ) -> tuple[str, int]:
     """Extract one normalised person-name candidate from the entity stream."""
@@ -287,7 +301,7 @@ def extract_person_name_candidate(
 
 
 def parse_entity_span(
-    entity: dict[str, Any], text_length: int
+    entity: PersonEntity, text_length: int
 ) -> tuple[int | None, int | None]:
     """Return a validated entity span or ``(None, None)`` when unavailable."""
 

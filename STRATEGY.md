@@ -32,14 +32,14 @@ recovery perspective.
 #### Main remaining work
 
 - Create and maintain project-level governance and hardening documentation.
-- Expand type-checking into the highest-risk integration modules.
 - Add security, dependency, secret, and supply-chain scanning gates.
 - Define privacy, retention, observability, and recovery operating procedures.
 - Add stronger real-environment validation beyond the current optional path.
 
 #### Main risks
 
-- Core WhisperX integration modules are not yet fully type-checked.
+- Dynamic WhisperX and transformers boundaries remain only partially typed
+  because upstream libraries do not expose a stable typed API.
 - CI does not yet prove security posture, container provenance, or SBOM output.
 - Operational privacy controls are described in parts, but not consolidated.
 - Real-runtime validation depends on optional caller-provided fixtures.
@@ -87,8 +87,6 @@ The following points are directly supported by repository contents as of
 - The Docker smoke path exists and has optional GPU diagnostics.
 - `tests/test_e2e.py` provides an optional real-runtime test path gated by
   environment variables.
-- The current mypy scope excludes `src/whisperx_daemon/pipeline.py` and
-  `packages/transcript-postprocess/src/transcript_postprocess/core.py`.
 - No repository file currently defines dedicated CI jobs for security scanning,
   image scanning, SBOM generation, provenance, privacy operations,
   observability, or recovery drills.
@@ -173,7 +171,8 @@ Notable design properties:
 
 ### Limitations
 
-- The highest-risk integration modules are not yet inside the mypy scope.
+- The highest-risk integration modules are now inside the enforced mypy scope.
+- Transcript payloads and NER entity payloads now have explicit local typing.
 - Real-runtime validation is optional and not clearly part of the default CI
   contract.
 - Complete coverage is useful but does not prove real-environment correctness
@@ -245,8 +244,22 @@ Notable design properties:
   packaging.
 - Evidence: `packages/transcript-postprocess/`, package README, packaging tests.
 - Current status: complete with limitations.
-- Remaining limitations: core text-processing module is not yet inside the
-  configured mypy scope.
+- Remaining limitations: dynamic transformers integration remains a narrow
+  external typing boundary.
+
+### Critical-module type-safety expansion
+
+- Purpose: bring the highest-risk integration and text-processing modules into
+  the enforced mypy contract.
+- Concrete outputs: mypy scope extended to `pipeline.py` and
+  `transcript_postprocess/core.py`, packaging regression test added, transcript
+  and NER payload shapes tightened with explicit local types.
+- Evidence: `pyproject.toml`, `tests/test_packaging.py`,
+  `src/whisperx_daemon/pipeline.py`,
+  `packages/transcript-postprocess/src/transcript_postprocess/core.py`.
+- Current status: complete with limitations.
+- Remaining limitations: WhisperX and transformers remain narrow dynamic
+  integration boundaries due to unstable upstream type surfaces.
 
 ### Development and packaging standardisation
 
@@ -270,14 +283,6 @@ Notable design properties:
 
 ## 10. Active workstreams
 
-### Governance and current-state reconstruction
-
-- Status: in progress.
-- Evidence: this memo is being added now because the repository did not yet have
-  a project-level strategy memo.
-- Why active: the hardening programme needs a maintained source of truth for
-  completed work, remaining work, risks, and operating assumptions.
-
 ### Hardening backlog definition
 
 - Status: in progress.
@@ -292,8 +297,8 @@ Notable design properties:
 
 | Workstream | Current status |
 |---|---|
-| Strategy and governance memo | In progress |
-| Type-checking expansion for critical modules | Not started |
+| Strategy and governance memo | Complete with limitations |
+| Type-checking expansion for critical modules | Complete with limitations |
 | Security and CI scanning baseline | Not started |
 | Container provenance and SBOM | Not started |
 | Retention and privacy operations | Not started |
@@ -304,20 +309,7 @@ Notable design properties:
 
 ### Prioritised remaining tasks
 
-#### 1. Expand mypy to highest-risk modules
-
-- What must be done: include `pipeline.py` and
-  `transcript_postprocess/core.py`, then resolve resulting type issues with
-  narrow boundaries around untyped external APIs.
-- Why it matters: these modules sit on the highest-risk integration and
-  transformation paths.
-- Dependencies: current mypy config, repository typing conventions.
-- Risk if not completed: latent data-shape and integration faults remain harder
-  to detect.
-- Recommended next step: create a dedicated branch and add packaging regression
-  tests that pin the expected mypy scope.
-
-#### 2. Add security and dependency gates
+#### 1. Add security and dependency gates
 
 - What must be done: add vulnerability, secret, and licence checks plus
   security documentation and triage rules.
@@ -327,7 +319,7 @@ Notable design properties:
   enter releases without a blocking signal.
 - Recommended next step: add a dedicated CI job and Makefile targets.
 
-#### 3. Add container provenance, SBOM, and image scanning
+#### 2. Add container provenance, SBOM, and image scanning
 
 - What must be done: scan built images, generate SBOM artefacts, and document
   provenance and digest-management policy.
@@ -338,7 +330,7 @@ Notable design properties:
 - Recommended next step: extend the existing Docker job rather than creating a
   separate ad hoc path.
 
-#### 4. Define privacy and retention operations
+#### 3. Define privacy and retention operations
 
 - What must be done: document artefact classes, retention expectations,
   deletion methods, and logging constraints.
@@ -349,7 +341,7 @@ Notable design properties:
 - Recommended next step: add a dedicated `docs/privacy.md` and cross-link it
   from streaming and output guides.
 
-#### 5. Strengthen real-environment validation
+#### 4. Strengthen real-environment validation
 
 - What must be done: convert the optional real-runtime path into a reproducible
   smoke workflow with deterministic fixtures and clear skip policy.
@@ -359,7 +351,7 @@ Notable design properties:
 - Risk if not completed: integration regressions may pass local and CI checks.
 - Recommended next step: add a small CPU smoke path first and keep GPU optional.
 
-#### 6. Formalise observability
+#### 5. Formalise observability
 
 - What must be done: introduce structured runtime events and document the event
   catalogue.
@@ -370,7 +362,7 @@ Notable design properties:
 - Recommended next step: add a minimal dataclass-backed event model without
   logging transcript text.
 
-#### 7. Add recovery and failure-mode validation
+#### 6. Add recovery and failure-mode validation
 
 - What must be done: test partial writes, archive collisions, state corruption,
   and restore procedures, then document the recovery policy.
@@ -381,7 +373,7 @@ Notable design properties:
 - Recommended next step: start with atomic-write tests and corrupted-state
   behaviour.
 
-#### 8. Consolidate release-readiness controls
+#### 7. Consolidate release-readiness controls
 
 - What must be done: add a production-readiness checklist, PR template, and
   ownership/update policy.
@@ -394,9 +386,9 @@ Notable design properties:
 
 ### Technical risks
 
-- Untyped integration boundaries in WhisperX and related dependencies.
-  Mitigation: expand mypy carefully and isolate external calls behind typed
-  helpers.
+- Dynamic integration boundaries in WhisperX and related dependencies.
+  Mitigation: keep the boundaries narrow, typed locally where possible, and
+  document any unavoidable dynamic surfaces explicitly.
 - Real-runtime behaviour may diverge from mocked tests.
   Mitigation: add CPU smoke validation with deterministic artefacts.
 - Partial-write and state-corruption behaviour is not yet explicit.
@@ -448,9 +440,10 @@ Notable design properties:
 
 ### Immediate next steps
 
-1. Merge this strategy memo and link it from the documentation index.
-2. Expand mypy into `pipeline.py` and `transcript_postprocess/core.py`.
-3. Record any unavoidable untyped external boundaries explicitly.
+1. Merge the strategy-memo and type-safety branches.
+2. Record any unavoidable untyped external boundaries explicitly in future
+   hardening work.
+3. Start the dedicated CI security-gate branch.
 
 ### Short-term priorities
 
@@ -475,3 +468,6 @@ Notable design properties:
 ## 15. Change log
 
 - 2026-06-03: Created initial strategy memo from static codebase inventory.
+- 2026-06-03: Expanded mypy scope to `pipeline.py` and
+  `transcript_postprocess/core.py`, and documented the remaining dynamic ML
+  integration boundaries.

@@ -60,6 +60,7 @@ from whisperx_daemon.pipeline import (
     format_timestamp,
     iter_person_detection_fragments,
     load_whisperx_module,
+    normalise_segment,
     pseudonymize_transcript_document,
     replace_terms_in_transcript_document,
 )
@@ -341,6 +342,25 @@ class PipelineEdgeTests(unittest.TestCase):
             transcriber.align_transcript(fake_module, "audio", result),
             result,
         )
+
+    def test_normalise_segment_drops_unsupported_timestamp_and_speaker_types(
+        self,
+    ) -> None:
+        segment = normalise_segment(
+            {
+                "id": 7,
+                "start": object(),
+                "end": object(),
+                "speaker": 3,
+                "text": "hello",
+            }
+        )
+
+        self.assertEqual(segment["id"], 7)
+        self.assertEqual(segment["text"], "hello")
+        self.assertNotIn("start", segment)
+        self.assertNotIn("end", segment)
+        self.assertNotIn("speaker", segment)
 
     def test_transcribe_loaded_audio_preserves_external_session_on_failure(
         self,
