@@ -87,3 +87,9 @@ The codebase is intentionally narrow and explicit:
 
 This keeps the daemon maintainable and allows the reusable text-processing
 logic to evolve independently.
+
+## Governance Reference
+
+Project-level status, risks, workstreams, and hardening priorities are tracked
+in [`STRATEGY.md`](../STRATEGY.md). The architecture guide describes the system
+shape; the strategy memo describes current state and recommended next steps.
