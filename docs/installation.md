@@ -25,7 +25,7 @@ lives in `uv.lock`.
 
 Current direct pins:
 
-- `transcript-postprocess[ner]`
+- `textformer[ner]`
 - `torchcodec>=0.7,<0.8`
 - `whisperx==3.8.4` through the `cpu` and `gpu` extras
 - `torch==2.8.0` through the `cpu` and `gpu` extras
@@ -64,12 +64,12 @@ uv sync --extra gpu --group dev --all-packages
 
 ## External Post-Processing Dependency
 
-`transcript-postprocess` now lives in a separate sibling repository. During
+`textformer` now lives in a separate sibling repository. During
 local development, place the two repositories beside each other and point `uv`
 at the sibling checkout with an editable source override:
 
 ```bash
-uv add --editable ../transcript-postprocess --extra ner
+uv add --editable ../textformer --extra ner
 ```
 
 The committed configuration keeps the dependency explicit; it is no longer a

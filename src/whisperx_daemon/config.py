@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from transcript_postprocess import DEFAULT_PERSON_NER_MODEL
+from textformer import DEFAULT_PERSON_NER_MODEL
 
 
 @dataclass(frozen=True)

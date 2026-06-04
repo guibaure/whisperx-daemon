@@ -89,7 +89,7 @@ Behaviour:
 ## Standalone Package
 
 The reusable post-processing logic now lives in the sibling
-`transcript-postprocess` repository. Install that repository separately when
+`textformer` repository. Install that repository separately when
 you need the standalone CLI or the Python package outside `whisperx-daemon`.
 
 The daemon repository still consumes the package as a normal dependency and

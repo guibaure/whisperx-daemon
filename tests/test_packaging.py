@@ -32,7 +32,7 @@ class PackagingContractTests(unittest.TestCase):
         dependencies = pyproject_payload["project"]["dependencies"]
         dep_text = " ".join(dependencies)
 
-        self.assertIn("transcript-postprocess[ner]", dep_text)
+        self.assertIn("textformer[ner]", dep_text)
         self.assertIn("torchcodec", dep_text)
 
     def test_pyproject_declares_cpu_and_gpu_extras(self) -> None:
@@ -67,8 +67,8 @@ class PackagingContractTests(unittest.TestCase):
 
         self.assertNotIn("workspace", pyproject_payload.get("tool", {}).get("uv", {}))
         self.assertEqual(
-            pyproject_payload["tool"]["uv"]["sources"]["transcript-postprocess"],
-            {"path": "../transcript-postprocess"},
+            pyproject_payload["tool"]["uv"]["sources"]["textformer"],
+            {"path": "../textformer"},
         )
 
     def test_mypy_scope_targets_daemon_modules_only(self) -> None:
@@ -79,7 +79,7 @@ class PackagingContractTests(unittest.TestCase):
         mypy_files = pyproject_payload["tool"]["mypy"]["files"]
 
         self.assertIn("src/whisperx_daemon/pipeline.py", mypy_files)
-        self.assertNotIn("packages/transcript-postprocess", " ".join(mypy_files))
+        self.assertNotIn("packages/textformer", " ".join(mypy_files))
 
     def test_makefile_declares_coverage_target(self) -> None:
         makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
@@ -135,6 +135,8 @@ class PackagingContractTests(unittest.TestCase):
         self.assertFalse(
             (REPOSITORY_ROOT / "packages" / "transcript-postprocess").exists()
         )
+        self.assertFalse((REPOSITORY_ROOT / "textformer").exists())
+        self.assertFalse((REPOSITORY_ROOT / "packages" / "textformer").exists())
 
     def test_dockerfile_no_longer_copies_package_tree(self) -> None:
         dockerfile_text = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
@@ -142,6 +144,10 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("COPY pyproject.toml uv.lock README.md /app/", dockerfile_text)
         self.assertNotIn(
             "COPY packages/transcript-postprocess /app/packages/transcript-postprocess",
+            dockerfile_text,
+        )
+        self.assertNotIn(
+            "COPY packages/textformer /app/packages/textformer",
             dockerfile_text,
         )
         self.assertIn(

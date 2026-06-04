@@ -16,7 +16,7 @@ post-processing that upstream WhisperX does not provide directly.
 The repository already has a coherent layered architecture, a reusable
 post-processing dependency boundary, repository-wide tests, branch coverage
 enforcement, basic mypy coverage, Docker build and smoke validation, and
-GitHub Actions CI. `transcript-postprocess` has been extracted into a sibling
+GitHub Actions CI. `textformer` has been extracted into a sibling
 repository and is now consumed as an external dependency rather than a
 workspace member. The repository is stronger than a prototype, but it is not
 yet fully hardened from a governance, security, provenance, observability,
@@ -27,7 +27,7 @@ privacy-operations, and recovery perspective.
 - Established a single-node daemon architecture around a managed runtime tree.
 - Added streaming transcription with live JSONL events and final artefacts.
 - Separated reusable transcript sanitisation into the standalone
-  `transcript-postprocess` repository.
+  `textformer` repository.
 - Standardised development and packaging on `uv`.
 - Added quality, test, coverage, package-build, and Docker-build CI jobs.
 - Added Docker smoke validation and complete branch coverage enforcement.
@@ -71,7 +71,7 @@ The following points are directly supported by repository contents as of
 2026-06-03:
 
 - The repository contains one Python package: `whisperx-daemon`.
-- The reusable `transcript-postprocess` package now lives in a separate sibling
+- The reusable `textformer` package now lives in a separate sibling
   repository and is consumed as an external dependency.
 - The root package uses `src/whisperx_daemon/`.
 - The runtime contract includes `input`, `processing`, `archive/succeeded`,
@@ -104,7 +104,7 @@ working assumptions until validated against maintainer intent:
 - Streaming support appears to have been a later capability rather than an
   original baseline because the commit history shows a distinct sequence of
   streaming-related feature commits.
-- The reusable `transcript-postprocess` package is intended as a deliberate
+- The reusable `textformer` package is intended as a deliberate
   boundary for independent reuse; it has now been extracted into its own
   repository.
 - The current engineering direction prioritises maintainability and explicit
@@ -248,7 +248,7 @@ Notable design properties:
 - Purpose: separate transcript sanitisation from daemon orchestration.
 - Concrete outputs: standalone sibling repository, CLI, documentation, package
   metadata, packaging tests.
-- Evidence: sibling `transcript-postprocess` repository, package README,
+- Evidence: sibling `textformer` repository, package README,
   packaging tests.
 - Current status: complete with limitations.
 - Remaining limitations: dynamic transformers integration remains a narrow
@@ -258,12 +258,12 @@ Notable design properties:
 
 - Purpose: bring the highest-risk integration and text-processing modules into
   the enforced mypy contract.
-- Concrete outputs: mypy scope extended to `pipeline.py` and
-  `transcript_postprocess/core.py`, packaging regression test added, transcript
-  and NER payload shapes tightened with explicit local types.
+- Concrete outputs: daemon mypy scope extended to `pipeline.py`, the sibling
+  `textformer` repository enforces strict checks for `src/textformer/core.py`,
+  packaging regression tests added, and transcript and NER payload shapes
+  tightened with explicit local types.
 - Evidence: `pyproject.toml`, `tests/test_packaging.py`,
-  `src/whisperx_daemon/pipeline.py`,
-  `packages/transcript-postprocess/src/transcript_postprocess/core.py`.
+  `src/whisperx_daemon/pipeline.py`, and sibling `textformer` validation.
 - Current status: complete with limitations.
 - Remaining limitations: WhisperX and transformers remain narrow dynamic
   integration boundaries due to unstable upstream type surfaces.
@@ -416,6 +416,11 @@ Notable design properties:
 - Vulnerable dependencies or container layers may go undetected in routine CI.
   Mitigation: add `pip-audit`, security scanning, image scanning, and SBOM
   generation.
+- The committed local `../textformer` dependency source validates sibling
+  development but is not available inside a daemon-only Docker build context.
+  Mitigation: publish or tag `textformer` before Docker release validation, or
+  implement an explicit parent-context Docker build that includes both sibling
+  repositories.
 
 ### Validation and governance risks
 
@@ -460,7 +465,8 @@ Notable design properties:
 3. Add privacy and retention operational documentation.
 4. Add reproducible CPU real-smoke validation.
 5. Finalise Docker publication strategy for the extracted package dependency
-   boundary.
+   boundary so `make docker-smoke` can resolve `textformer` inside the image
+   build context.
 
 ### Medium-term priorities
 
@@ -479,7 +485,11 @@ Notable design properties:
 
 - 2026-06-03: Created initial strategy memo from static codebase inventory.
 - 2026-06-03: Expanded mypy scope to `pipeline.py` and
-  `transcript_postprocess/core.py`, and documented the remaining dynamic ML
-  integration boundaries.
-- 2026-06-04: Extracted `transcript-postprocess` into a sibling repository and
+  the then-workspace post-processing core, and documented the remaining dynamic
+  ML integration boundaries.
+- 2026-06-04: Extracted `textformer` into a sibling repository and
   converted `whisperx-daemon` to consume it as an external dependency boundary.
+- 2026-06-04: Renamed the extracted post-processing package and daemon
+  dependency boundary to `textformer`.
+- 2026-06-04: Documented the Docker build-context limitation while the daemon
+  consumes `textformer` through a local sibling source path.

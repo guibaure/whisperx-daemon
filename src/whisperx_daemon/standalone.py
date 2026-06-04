@@ -1,15 +1,15 @@
-"""Compatibility wrapper around the standalone transcript-postprocess CLI.
+"""Compatibility wrapper around the standalone textformer CLI.
 
 The reusable post-processing logic now lives in the independent
-``transcript_postprocess`` package. This module preserves the historical
+``textformer`` package. This module preserves the historical
 ``python -m whisperx_daemon.standalone`` entrypoint so existing workflows do
 not break while the reusable package is extracted cleanly.
 """
 
 from __future__ import annotations
 
-from transcript_postprocess import PostprocessError
-from transcript_postprocess.cli import main
+from textformer import PostprocessError
+from textformer.cli import main
 
 __all__ = ["main"]
 

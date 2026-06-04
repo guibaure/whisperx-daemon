@@ -33,7 +33,7 @@
 - `pipeline.py`
   WhisperX integration, alignment, diarisation, post-processing, and output
   shaping.
-- `transcript-postprocess`
+- `textformer`
   External reusable pseudonymisation and configured term replacement package.
 
 ## Processing Flow

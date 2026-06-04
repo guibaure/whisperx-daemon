@@ -9,7 +9,7 @@ description = "Local-first audio transcription daemon scaffold"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "transcript-postprocess[ner]",
+    "textformer[ner]",
     "torchcodec>=0.7,<0.8",
 ]
 
@@ -54,7 +54,7 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
-transcript-postprocess = { path = "../transcript-postprocess" }
+textformer = { path = "../textformer" }
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-gpu", extra = "gpu" },
