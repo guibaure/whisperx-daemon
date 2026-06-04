@@ -27,7 +27,7 @@ does not provide out of the box.
 | Production-shaped outputs | Writes structured JSON, readable TXT, and structured failure reports |
 | Continuous daemon mode | Runs once or continuously instead of only acting as a one-shot transcription script |
 | Docker/runtime hardening | Supports CPU or CUDA execution, bind-mounted runtimes, and arbitrary host UID/GID mapping |
-| Reusable post-processing package | Exposes `transcript-postprocess` as an independent package for standalone sanitisation workflows |
+| Reusable post-processing package | Consumes `transcript-postprocess` as an external sibling repository or released dependency for standalone sanitisation workflows |
 
 ## Privacy Features
 
@@ -36,7 +36,7 @@ The main project-specific extension over WhisperX is transcript sanitisation.
 - `Pseudonymisation`: replaces detected explicit person names with stable pseudonyms inside one document
 - `Anonymisation-oriented processing`: supports privacy-oriented transcript rewriting, but should not be treated as a legal or formal anonymisation guarantee
 - `Term replacement`: rewrites configured proper nouns such as organisation names, product names, or internal project names
-- `Standalone reuse`: the same sanitisation logic is available outside the daemon through the `transcript-postprocess` package
+- `Standalone reuse`: the same sanitisation logic is available outside the daemon through the separately maintained `transcript-postprocess` repository
 
 ## Prerequisites
 
@@ -142,7 +142,7 @@ The repository contains two Python packages:
 | Package | Purpose |
 |---|---|
 | `whisperx-daemon` | Daemon: runtime lifecycle, transcription pipeline, CLI |
-| `transcript-postprocess` | Reusable text pseudonymisation and term replacement |
+| `transcript-postprocess` | External reusable text pseudonymisation and term replacement package |
 
 The second is kept as an explicit dependency boundary so the text
 post-processing logic remains reusable outside the daemon.

@@ -2,7 +2,7 @@
 
 ## Package Manager
 
-This project is a [uv](https://docs.astral.sh/uv/) workspace. Install `uv`
+This project is managed with [uv](https://docs.astral.sh/uv/). Install `uv`
 with:
 
 ```bash
@@ -20,7 +20,6 @@ lives in `uv.lock`.
 - `[project.optional-dependencies].gpu`: WhisperX with CUDA PyTorch wheels.
 - `[dependency-groups].dev`: development tools such as `mypy`, `ruff`, and
   `coverage`.
-- `[tool.uv.workspace]`: monorepo membership for `transcript-postprocess`.
 - `[tool.uv].conflicts`: declares `cpu` and `gpu` as mutually exclusive runtime
   extras, because the PyTorch wheel variants cannot coexist in one environment.
 
@@ -63,26 +62,15 @@ Equivalent direct command:
 uv sync --extra gpu --group dev --all-packages
 ```
 
-## Package Layout
+## External Post-Processing Dependency
 
-This monorepo contains two Python packages:
-
-- `whisperx-daemon`
-- `transcript-postprocess`
-
-`uv sync --all-packages` installs both workspace packages while preserving a
-real package boundary.
-
-## Plain-Checkout Convenience
-
-The repository includes checkout-time shims so these commands work from a plain
-clone:
+`transcript-postprocess` now lives in a separate sibling repository. During
+local development, place the two repositories beside each other and point `uv`
+at the sibling checkout with an editable source override:
 
 ```bash
-uv run whisperx-daemon --help
-uv run transcript-postprocess --help
+uv add --editable ../transcript-postprocess --extra ner
 ```
 
-`python3 -m whisperx_daemon --help` and
-`python3 -m transcript_postprocess --help` also work from a plain checkout for
-convenience, but `uv run` is the canonical project entrypoint.
+The committed configuration keeps the dependency explicit; it is no longer a
+workspace member of this repository.

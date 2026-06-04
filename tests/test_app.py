@@ -19,6 +19,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from transcript_postprocess import postprocess_text
+
 from whisperx_daemon.app import configure_logging, resolve_transcription_config, run
 from whisperx_daemon.cli import build_argument_parser, main
 from whisperx_daemon.config import RuntimeLayout, StreamingConfig, TranscriptionConfig

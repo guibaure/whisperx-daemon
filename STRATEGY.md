@@ -14,17 +14,20 @@ post-processing that upstream WhisperX does not provide directly.
 #### Current state
 
 The repository already has a coherent layered architecture, a reusable
-post-processing package, repository-wide tests, branch coverage enforcement,
-basic mypy coverage, Docker build and smoke validation, and GitHub Actions CI.
-It is stronger than a prototype, but it is not yet fully hardened from a
-governance, security, provenance, observability, privacy-operations, and
-recovery perspective.
+post-processing dependency boundary, repository-wide tests, branch coverage
+enforcement, basic mypy coverage, Docker build and smoke validation, and
+GitHub Actions CI. `transcript-postprocess` has been extracted into a sibling
+repository and is now consumed as an external dependency rather than a
+workspace member. The repository is stronger than a prototype, but it is not
+yet fully hardened from a governance, security, provenance, observability,
+privacy-operations, and recovery perspective.
 
 #### Main achievements
 
 - Established a single-node daemon architecture around a managed runtime tree.
 - Added streaming transcription with live JSONL events and final artefacts.
-- Separated reusable transcript sanitisation into `transcript-postprocess`.
+- Separated reusable transcript sanitisation into the standalone
+  `transcript-postprocess` repository.
 - Standardised development and packaging on `uv`.
 - Added quality, test, coverage, package-build, and Docker-build CI jobs.
 - Added Docker smoke validation and complete branch coverage enforcement.
@@ -67,10 +70,10 @@ The project should be considered substantially hardened when:
 The following points are directly supported by repository contents as of
 2026-06-03:
 
-- The repository contains two Python packages: `whisperx-daemon` and
-  `transcript-postprocess`.
-- The root package uses `src/whisperx_daemon/` and the reusable package lives in
-  `packages/transcript-postprocess/`.
+- The repository contains one Python package: `whisperx-daemon`.
+- The reusable `transcript-postprocess` package now lives in a separate sibling
+  repository and is consumed as an external dependency.
+- The root package uses `src/whisperx_daemon/`.
 - The runtime contract includes `input`, `processing`, `archive/succeeded`,
   `archive/failed`, `output`, `failed`, `logs`, `jobs.sqlite3`, and
   `term-replacements.json`.
@@ -102,7 +105,8 @@ working assumptions until validated against maintainer intent:
   original baseline because the commit history shows a distinct sequence of
   streaming-related feature commits.
 - The reusable `transcript-postprocess` package is intended as a deliberate
-  boundary for eventual independent reuse or extraction.
+  boundary for independent reuse; it has now been extracted into its own
+  repository.
 - The current engineering direction prioritises maintainability and explicit
   contracts over framework-heavy expansion.
 - The next phase of work should focus on governance and hardening rather than
@@ -117,6 +121,8 @@ working assumptions until validated against maintainer intent:
 3. Streaming ingestion, events, and runtime documentation.
 4. Quality hardening through Docker smoke, coverage policy, and full branch
    coverage enforcement.
+5. Extraction of the reusable transcript post-processing package into its own
+   repository.
 
 ### Evidence of evolution
 
@@ -240,9 +246,10 @@ Notable design properties:
 ### Reusable post-processing package
 
 - Purpose: separate transcript sanitisation from daemon orchestration.
-- Concrete outputs: independent package, CLI, documentation, workspace
-  packaging.
-- Evidence: `packages/transcript-postprocess/`, package README, packaging tests.
+- Concrete outputs: standalone sibling repository, CLI, documentation, package
+  metadata, packaging tests.
+- Evidence: sibling `transcript-postprocess` repository, package README,
+  packaging tests.
 - Current status: complete with limitations.
 - Remaining limitations: dynamic transformers integration remains a narrow
   external typing boundary.
@@ -264,8 +271,8 @@ Notable design properties:
 ### Development and packaging standardisation
 
 - Purpose: make local and CI workflows reproducible.
-- Concrete outputs: `pyproject.toml`, `uv.lock`, workspace config, Makefile
-  targets, package build jobs.
+- Concrete outputs: `pyproject.toml`, `uv.lock`, dependency source override,
+  Makefile targets, package build jobs.
 - Evidence: `pyproject.toml`, `.github/workflows/ci.yml`, `tests/test_packaging.py`.
 - Current status: complete.
 - Remaining limitations: supply-chain and dependency-governance controls are
@@ -299,6 +306,7 @@ Notable design properties:
 |---|---|
 | Strategy and governance memo | Complete with limitations |
 | Type-checking expansion for critical modules | Complete with limitations |
+| Transcript-postprocess extraction | Complete with limitations |
 | Security and CI scanning baseline | Not started |
 | Container provenance and SBOM | Not started |
 | Retention and privacy operations | Not started |
@@ -451,6 +459,8 @@ Notable design properties:
 2. Add container image scanning and SBOM generation.
 3. Add privacy and retention operational documentation.
 4. Add reproducible CPU real-smoke validation.
+5. Finalise Docker publication strategy for the extracted package dependency
+   boundary.
 
 ### Medium-term priorities
 
@@ -462,8 +472,8 @@ Notable design properties:
 
 1. GPU-backed CI validation if a stable runner becomes available.
 2. Stronger provenance tooling after the baseline security gates are stable.
-3. Additional packaging separation if `transcript-postprocess` is later split
-   into its own repository.
+3. Additional packaging separation work only if the dependency publication
+   strategy changes again.
 
 ## 15. Change log
 
@@ -471,3 +481,5 @@ Notable design properties:
 - 2026-06-03: Expanded mypy scope to `pipeline.py` and
   `transcript_postprocess/core.py`, and documented the remaining dynamic ML
   integration boundaries.
+- 2026-06-04: Extracted `transcript-postprocess` into a sibling repository and
+  converted `whisperx-daemon` to consume it as an external dependency boundary.

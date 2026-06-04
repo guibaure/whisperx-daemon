@@ -35,10 +35,10 @@ setup-cpu: sync-cpu
 setup-cuda: sync-cuda
 
 test:
-	PYTHONPATH=src:packages/transcript-postprocess/src $(PYTHON) -m unittest discover -s tests -v
+	PYTHONPATH=src $(PYTHON) -m unittest discover -s tests -v
 
 coverage:
-	PYTHONPATH=src:packages/transcript-postprocess/src uv run --group dev coverage run -m unittest discover -s tests -v
+	PYTHONPATH=src uv run --group dev coverage run -m unittest discover -s tests -v
 	uv run --group dev coverage report
 
 docker-smoke:

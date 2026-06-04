@@ -54,7 +54,7 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
-transcript-postprocess = { workspace = true }
+transcript-postprocess = { path = "../transcript-postprocess" }
 torch = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-gpu", extra = "gpu" },
@@ -63,9 +63,6 @@ torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-gpu", extra = "gpu" },
 ]
-
-[tool.uv.workspace]
-members = ["packages/transcript-postprocess"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -76,17 +73,14 @@ where = ["src"]
 [tool.ruff]
 target-version = "py311"
 line-length = 88
-src = ["src", "packages/transcript-postprocess/src", "tests"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "UP"]
 
 [tool.coverage.run]
 branch = true
-source = [
-    "src/whisperx_daemon",
-    "packages/transcript-postprocess/src/transcript_postprocess",
-]
+source = ["src/whisperx_daemon"]
 omit = [
     "*/__init__.py",
     "*/__main__.py",
@@ -114,8 +108,6 @@ files = [
     "src/whisperx_daemon/state.py",
     "src/whisperx_daemon/streaming.py",
     "src/whisperx_daemon/watcher.py",
-    "packages/transcript-postprocess/src/transcript_postprocess/cli.py",
-    "packages/transcript-postprocess/src/transcript_postprocess/core.py",
 ]
 check_untyped_defs = true
 disallow_incomplete_defs = true

@@ -36,12 +36,6 @@ conflicts = [[
     { package = "whisperx-daemon", extra = "gpu" },
 ]]
 
-[manifest]
-members = [
-    "transcript-postprocess",
-    "whisperx-daemon",
-]
-
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -2755,7 +2749,7 @@ wheels = [
 [[package]]
 name = "transcript-postprocess"
 version = "0.1.0"
-source = { editable = "packages/transcript-postprocess" }
+source = { directory = "../transcript-postprocess" }
 
 [package.optional-dependencies]
 ner = [
@@ -2769,6 +2763,17 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'ner'", specifier = ">=4.47" },
 ]
 provides-extras = ["ner"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "bandit", specifier = ">=1.7" },
+    { name = "build", specifier = ">=1.2" },
+    { name = "coverage", extras = ["toml"], specifier = ">=7.6" },
+    { name = "mypy", specifier = ">=1.11" },
+    { name = "pip-audit", specifier = ">=2.7" },
+    { name = "ruff", specifier = ">=0.6" },
+    { name = "twine", specifier = ">=5.1" },
+]
 
 [[package]]
 name = "transformers"
@@ -2922,7 +2927,7 @@ requires-dist = [
     { name = "torchaudio", marker = "extra == 'cpu'", specifier = "==2.8.0", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "whisperx-daemon", extra = "cpu" } },
     { name = "torchaudio", marker = "extra == 'gpu'", specifier = "==2.8.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "whisperx-daemon", extra = "gpu" } },
     { name = "torchcodec", specifier = ">=0.7,<0.8" },
-    { name = "transcript-postprocess", extras = ["ner"], editable = "packages/transcript-postprocess" },
+    { name = "transcript-postprocess", extras = ["ner"], directory = "../transcript-postprocess" },
     { name = "whisperx", marker = "extra == 'cpu'", specifier = "==3.8.4" },
     { name = "whisperx", marker = "extra == 'gpu'", specifier = "==3.8.4" },
 ]
