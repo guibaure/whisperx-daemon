@@ -13,14 +13,17 @@ post-processing that upstream WhisperX does not provide directly.
 
 #### Current state
 
-The repository already has a coherent layered architecture, a reusable
-post-processing dependency boundary, repository-wide tests, branch coverage
-enforcement, basic mypy coverage, Docker build and smoke validation, and
-GitHub Actions CI. `textformer` has been extracted into a sibling
-repository and is now consumed as an external dependency rather than a
-workspace member. The repository is stronger than a prototype, but it is not
-yet fully hardened from a governance, security, provenance, observability,
-privacy-operations, and recovery perspective.
+The repository has a coherent layered architecture, a reusable post-processing
+dependency boundary, repository-wide tests, complete branch-coverage
+enforcement, targeted mypy coverage, Docker build and smoke validation, and
+GitHub Actions CI. `textformer` has been extracted into a sibling repository
+and is consumed as an external dependency rather than a workspace member. The
+validated documentation, type-safety, extraction, and dependency-rename stack
+has been consolidated into `develop`. One CUDA cleanup fix remains explicitly
+work in progress and is not part of the integration baseline. The repository
+is stronger than a prototype, but is not yet fully hardened from a governance,
+security, provenance, observability, privacy-operations, and recovery
+perspective.
 
 #### Main achievements
 
@@ -31,6 +34,8 @@ privacy-operations, and recovery perspective.
 - Standardised development and packaging on `uv`.
 - Added quality, test, coverage, package-build, and Docker-build CI jobs.
 - Added Docker smoke validation and complete branch coverage enforcement.
+- Consolidated the validated June 2026 branch stack and removed redundant local
+  branch references after proving ancestry or patch equivalence.
 
 #### Main remaining work
 
@@ -68,7 +73,7 @@ The project should be considered substantially hardened when:
 ## 2. Explicit facts
 
 The following points are directly supported by repository contents as of
-2026-06-03:
+2026-07-25:
 
 - The repository contains one Python package: `whisperx-daemon`.
 - The reusable `textformer` package now lives in a separate sibling
@@ -93,6 +98,10 @@ The following points are directly supported by repository contents as of
 - No repository file currently defines dedicated CI jobs for security scanning,
   image scanning, SBOM generation, provenance, privacy operations,
   observability, or recovery drills.
+- Local validation passes 114 tests with one opt-in real-runtime test skipped,
+  plus Ruff, format, mypy, and 100% statement and branch coverage.
+- The unmerged CUDA cleanup branch has an associated WIP stash; its final scope
+  and integration status therefore remain unresolved.
 
 ## 3. Reasonable inferences
 
@@ -123,6 +132,8 @@ working assumptions until validated against maintainer intent:
    coverage enforcement.
 5. Extraction of the reusable transcript post-processing package into its own
    repository.
+6. Consolidation of the validated governance, type-safety, extraction, and
+   `textformer` migration changes into the development baseline.
 
 ### Evidence of evolution
 
@@ -298,22 +309,33 @@ Notable design properties:
 - Why active: the next phase is to convert the existing disciplined baseline
   into an auditable and operationally safer project.
 
+### CUDA cleanup failure handling
+
+- Status: in progress.
+- Evidence: the local `fix/cuda-cleanup-failure` branch contains a focused
+  cleanup-error commit and has an associated WIP stash.
+- Why active: the committed change is not sufficient evidence that all intended
+  work is complete; it remains deliberately unmerged pending stash review and a
+  clean validation run against the current `develop` baseline.
+
 ## 11. Remaining work
 
 ### Workstream status classification
 
-| Workstream | Current status |
-|---|---|
-| Strategy and governance memo | Complete with limitations |
-| Type-checking expansion for critical modules | Complete with limitations |
-| Transcript-postprocess extraction | Complete with limitations |
-| Security and CI scanning baseline | Not started |
-| Container provenance and SBOM | Not started |
-| Retention and privacy operations | Not started |
-| Real-environment smoke validation | Partially implemented |
-| Structured observability | Not started |
-| Recovery and failure-mode validation | Not started |
-| Production-readiness checklist | Not started |
+| Workstream | Current status | Evidence | Remaining work | Risk level | Recommended next action |
+|---|---|---|---|---|---|
+| Strategy and governance memo | Complete with limitations | `STRATEGY.md` and documentation links | Keep evidence and status current | Medium | Update with each material workstream |
+| Type-checking expansion | Complete with limitations | Mypy includes critical daemon modules; `make check` passes | Continue narrowing dynamic ML boundaries | Medium | Add types only where upstream contracts are stable |
+| `textformer` extraction | Complete with limitations | Sibling dependency, updated imports, lockfile, and packaging tests | Resolve release and Docker build-context strategy | High | Publish a versioned dependency or define a joint build context |
+| Branch consolidation | Complete | Ancestry and patch-equivalence audit; validated stack integrated into `develop` | Review the remaining WIP branch | Low | Keep topic branches short-lived and delete after integration |
+| CUDA cleanup failure handling | In progress | Focused commit plus associated WIP stash | Rebase, inspect stash, validate, and review | Medium | Retain as `fix/cuda-cleanup-failure` until complete |
+| Security and CI scanning baseline | Not started | No dedicated workflow jobs | Add vulnerability, secret, and licence gates | High | Add one maintainable CI security job |
+| Container provenance and SBOM | Not started | No scan, SBOM, or provenance artefact | Select tools and define update policy | High | Extend the existing Docker CI job |
+| Retention and privacy operations | Not started | Runtime artefacts documented but no retention policy | Define retention, deletion, and logging rules | High | Add `docs/privacy.md` |
+| Real-environment smoke validation | Partially implemented | Opt-in `tests/test_e2e.py` path | Make a deterministic CPU lane reproducible | High | Establish a small maintained fixture |
+| Structured observability | Not started | Operational logs exist without a stable event contract | Define events and sensitive-data exclusions | Medium | Add a minimal typed event model |
+| Recovery and failure-mode validation | Not started | No named recovery test workstream | Test partial writes, collisions, and corrupt state | High | Start with atomic-write behaviour |
+| Production-readiness checklist | Not started | No release decision checklist | Define ownership, waivers, and release evidence | Medium | Add after foundational hardening gates |
 
 ### Prioritised remaining tasks
 
@@ -431,6 +453,9 @@ Notable design properties:
 - Without a maintained strategy memo, project status and hardening priorities
   can become ambiguous.
   Mitigation: update this memo at the end of each hardening work item.
+- The CUDA cleanup branch may contain intended changes only in its WIP stash.
+  Mitigation: do not merge or delete the branch or stash until its scope is
+  reviewed and the complete result passes the current quality gate.
 
 ## 13. Open questions
 
@@ -453,9 +478,10 @@ Notable design properties:
 
 ### Immediate next steps
 
-1. Merge the strategy-memo and type-safety branches.
-2. Record any unavoidable untyped external boundaries explicitly in future
-   hardening work.
+1. Review and complete `fix/cuda-cleanup-failure`, including its associated WIP
+   stash, then rebase and validate it against `develop`.
+2. Finalise the versioned distribution and Docker build strategy for
+   `textformer`.
 3. Start the dedicated CI security-gate branch.
 
 ### Short-term priorities
@@ -493,3 +519,6 @@ Notable design properties:
   dependency boundary to `textformer`.
 - 2026-06-04: Documented the Docker build-context limitation while the daemon
   consumes `textformer` through a local sibling source path.
+- 2026-07-25: Consolidated the validated governance, type-safety, dependency
+  extraction, and rename stack into `develop`; classified the CUDA cleanup
+  branch as work in progress; and removed redundant merged branch references.
