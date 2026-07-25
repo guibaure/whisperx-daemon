@@ -14,28 +14,26 @@ post-processing that upstream WhisperX does not provide directly.
 #### Current state
 
 The repository has a coherent layered architecture, a reusable post-processing
-dependency boundary, repository-wide tests, complete branch-coverage
-enforcement, targeted mypy coverage, Docker build and smoke validation, and
-GitHub Actions CI. `textformer` has been extracted into a sibling repository
-and is consumed as an external dependency rather than a workspace member. The
-validated documentation, type-safety, extraction, and dependency-rename stack
-has been consolidated into `develop`. One CUDA cleanup fix remains explicitly
-work in progress and is not part of the integration baseline. The repository
-is stronger than a prototype, but is not yet fully hardened from a governance,
-security, provenance, observability, privacy-operations, and recovery
-perspective.
+package, repository-wide tests, complete branch-coverage enforcement, targeted
+mypy coverage, Docker build and smoke validation, and GitHub Actions CI. The
+strategy and critical-module type-safety work is integrated into `develop`.
+The attempted extraction to a sibling `textformer` repository is retained as
+work in progress because clean GitHub runners cannot resolve its local
+`../textformer` source. CUDA cleanup failure handling is also retained as work
+in progress. The project is stronger than a prototype, but is not yet fully
+hardened from a governance, security, provenance, observability,
+privacy-operations, and recovery perspective.
 
 #### Main achievements
 
 - Established a single-node daemon architecture around a managed runtime tree.
 - Added streaming transcription with live JSONL events and final artefacts.
-- Separated reusable transcript sanitisation into the standalone
-  `textformer` repository.
+- Separated reusable transcript sanitisation into `transcript-postprocess`.
 - Standardised development and packaging on `uv`.
 - Added quality, test, coverage, package-build, and Docker-build CI jobs.
 - Added Docker smoke validation and complete branch coverage enforcement.
-- Consolidated the validated June 2026 branch stack and removed redundant local
-  branch references after proving ancestry or patch equivalence.
+- Audited local branch ancestry and patch equivalence, removed redundant branch
+  references, and retained incomplete work under concise topic names.
 
 #### Main remaining work
 
@@ -51,6 +49,8 @@ perspective.
 - CI does not yet prove security posture, container provenance, or SBOM output.
 - Operational privacy controls are described in parts, but not consolidated.
 - Real-runtime validation depends on optional caller-provided fixtures.
+- The observed host runtime cannot load TorchCodec because supported FFmpeg 4-7
+  shared libraries are unavailable; this path requires environment validation.
 - Recovery behaviour is only partially documented and needs explicit drills.
 
 #### Overall assessment
@@ -75,10 +75,10 @@ The project should be considered substantially hardened when:
 The following points are directly supported by repository contents as of
 2026-07-25:
 
-- The repository contains one Python package: `whisperx-daemon`.
-- The reusable `textformer` package now lives in a separate sibling
-  repository and is consumed as an external dependency.
-- The root package uses `src/whisperx_daemon/`.
+- The repository contains two Python packages: `whisperx-daemon` and
+  `transcript-postprocess`.
+- The root package uses `src/whisperx_daemon/` and the reusable package lives in
+  `packages/transcript-postprocess/`.
 - The runtime contract includes `input`, `processing`, `archive/succeeded`,
   `archive/failed`, `output`, `failed`, `logs`, `jobs.sqlite3`, and
   `term-replacements.json`.
@@ -98,10 +98,13 @@ The following points are directly supported by repository contents as of
 - No repository file currently defines dedicated CI jobs for security scanning,
   image scanning, SBOM generation, provenance, privacy operations,
   observability, or recovery drills.
-- Local validation passes 114 tests with one opt-in real-runtime test skipped,
-  plus Ruff, format, mypy, and 100% statement and branch coverage.
-- The unmerged CUDA cleanup branch has an associated WIP stash; its final scope
-  and integration status therefore remain unresolved.
+- The strategy and critical-module type-safety commits pass the repository's
+  local quality gate.
+- The extraction stack failed GitHub Actions because `uv` could not find the
+  configured `../textformer` distribution on an isolated runner.
+- A real local run emitted a Pyannote warning because TorchCodec could not load
+  any supported FFmpeg `libavutil` ABI (56-59), although WhisperX continued to
+  voice-activity detection.
 
 ## 3. Reasonable inferences
 
@@ -113,9 +116,8 @@ working assumptions until validated against maintainer intent:
 - Streaming support appears to have been a later capability rather than an
   original baseline because the commit history shows a distinct sequence of
   streaming-related feature commits.
-- The reusable `textformer` package is intended as a deliberate
-  boundary for independent reuse; it has now been extracted into its own
-  repository.
+- The reusable `transcript-postprocess` package is intended as a deliberate
+  boundary for eventual independent reuse or extraction.
 - The current engineering direction prioritises maintainability and explicit
   contracts over framework-heavy expansion.
 - The next phase of work should focus on governance and hardening rather than
@@ -130,10 +132,11 @@ working assumptions until validated against maintainer intent:
 3. Streaming ingestion, events, and runtime documentation.
 4. Quality hardening through Docker smoke, coverage policy, and full branch
    coverage enforcement.
-5. Extraction of the reusable transcript post-processing package into its own
-   repository.
-6. Consolidation of the validated governance, type-safety, extraction, and
-   `textformer` migration changes into the development baseline.
+5. Type-safety expansion for the highest-risk daemon and post-processing
+   modules.
+6. Attempted extraction of post-processing into `textformer`, returned to an
+   explicit WIP branch after isolated CI exposed an unreproducible local-path
+   dependency.
 
 ### Evidence of evolution
 
@@ -257,10 +260,9 @@ Notable design properties:
 ### Reusable post-processing package
 
 - Purpose: separate transcript sanitisation from daemon orchestration.
-- Concrete outputs: standalone sibling repository, CLI, documentation, package
-  metadata, packaging tests.
-- Evidence: sibling `textformer` repository, package README,
-  packaging tests.
+- Concrete outputs: independent package, CLI, documentation, workspace
+  packaging.
+- Evidence: `packages/transcript-postprocess/`, package README, packaging tests.
 - Current status: complete with limitations.
 - Remaining limitations: dynamic transformers integration remains a narrow
   external typing boundary.
@@ -269,12 +271,12 @@ Notable design properties:
 
 - Purpose: bring the highest-risk integration and text-processing modules into
   the enforced mypy contract.
-- Concrete outputs: daemon mypy scope extended to `pipeline.py`, the sibling
-  `textformer` repository enforces strict checks for `src/textformer/core.py`,
-  packaging regression tests added, and transcript and NER payload shapes
-  tightened with explicit local types.
+- Concrete outputs: mypy scope extended to `pipeline.py` and
+  `transcript_postprocess/core.py`, packaging regression test added, transcript
+  and NER payload shapes tightened with explicit local types.
 - Evidence: `pyproject.toml`, `tests/test_packaging.py`,
-  `src/whisperx_daemon/pipeline.py`, and sibling `textformer` validation.
+  `src/whisperx_daemon/pipeline.py`,
+  `packages/transcript-postprocess/src/transcript_postprocess/core.py`.
 - Current status: complete with limitations.
 - Remaining limitations: WhisperX and transformers remain narrow dynamic
   integration boundaries due to unstable upstream type surfaces.
@@ -282,8 +284,8 @@ Notable design properties:
 ### Development and packaging standardisation
 
 - Purpose: make local and CI workflows reproducible.
-- Concrete outputs: `pyproject.toml`, `uv.lock`, dependency source override,
-  Makefile targets, package build jobs.
+- Concrete outputs: `pyproject.toml`, `uv.lock`, workspace config, Makefile
+  targets, package build jobs.
 - Evidence: `pyproject.toml`, `.github/workflows/ci.yml`, `tests/test_packaging.py`.
 - Current status: complete.
 - Remaining limitations: supply-chain and dependency-governance controls are
@@ -309,14 +311,30 @@ Notable design properties:
 - Why active: the next phase is to convert the existing disciplined baseline
   into an auditable and operationally safer project.
 
+### Extract the post-processing package
+
+- Status: in progress.
+- Evidence: `chore/extract-textformer-dependency` contains the extraction and
+  rename commits; GitHub Actions failed because `../textformer` is absent on a
+  clean runner.
+- Why active: a versioned, independently resolvable source and a compatible
+  Docker build path must be defined before integration.
+
 ### CUDA cleanup failure handling
 
 - Status: in progress.
-- Evidence: the local `fix/cuda-cleanup-failure` branch contains a focused
-  cleanup-error commit and has an associated WIP stash.
-- Why active: the committed change is not sufficient evidence that all intended
-  work is complete; it remains deliberately unmerged pending stash review and a
-  clean validation run against the current `develop` baseline.
+- Evidence: `fix/cuda-cleanup-failure` contains a focused commit and retains an
+  associated WIP stash.
+- Why active: the stash scope and the branch's compatibility with current
+  `develop` have not been validated.
+
+### TorchCodec runtime compatibility
+
+- Status: requires validation.
+- Evidence: a real host run could not load `libtorchcodec` because none of the
+  supported FFmpeg 4-7 `libavutil` ABIs were available.
+- Why active: Pyannote's built-in audio decoding is unavailable even though the
+  observed run continued into voice-activity detection.
 
 ## 11. Remaining work
 
@@ -324,18 +342,19 @@ Notable design properties:
 
 | Workstream | Current status | Evidence | Remaining work | Risk level | Recommended next action |
 |---|---|---|---|---|---|
-| Strategy and governance memo | Complete with limitations | `STRATEGY.md` and documentation links | Keep evidence and status current | Medium | Update with each material workstream |
-| Type-checking expansion | Complete with limitations | Mypy includes critical daemon modules; `make check` passes | Continue narrowing dynamic ML boundaries | Medium | Add types only where upstream contracts are stable |
-| `textformer` extraction | Complete with limitations | Sibling dependency, updated imports, lockfile, and packaging tests | Resolve release and Docker build-context strategy | High | Publish a versioned dependency or define a joint build context |
-| Branch consolidation | Complete | Ancestry and patch-equivalence audit; validated stack integrated into `develop` | Review the remaining WIP branch | Low | Keep topic branches short-lived and delete after integration |
-| CUDA cleanup failure handling | In progress | Focused commit plus associated WIP stash | Rebase, inspect stash, validate, and review | Medium | Retain as `fix/cuda-cleanup-failure` until complete |
+| Strategy and governance memo | Complete with limitations | `STRATEGY.md` and documentation links | Keep evidence current | Medium | Update after each material workstream |
+| Critical-module type safety | Complete with limitations | Mypy scope and regression tests | Narrow dynamic ML boundaries where stable | Medium | Preserve targeted typing rather than speculative stubs |
+| Branch consolidation | Complete | Ancestry and patch-equivalence audit | Review retained WIP branches | Low | Delete topic branches after validated integration |
+| `textformer` extraction | In progress | WIP branch and failed isolated CI run | Define resolvable distribution and Docker strategy | High | Replace the local path only after choosing a release contract |
+| CUDA cleanup handling | In progress | Focused commit and WIP stash | Inspect stash, rebase, and validate | Medium | Complete `fix/cuda-cleanup-failure` separately |
+| TorchCodec runtime compatibility | Requires validation | Missing supported `libavutil` ABI warning | Inventory FFmpeg and shared-library compatibility | High | Reproduce with a minimal decoder check and pin a supported environment |
 | Security and CI scanning baseline | Not started | No dedicated workflow jobs | Add vulnerability, secret, and licence gates | High | Add one maintainable CI security job |
-| Container provenance and SBOM | Not started | No scan, SBOM, or provenance artefact | Select tools and define update policy | High | Extend the existing Docker CI job |
-| Retention and privacy operations | Not started | Runtime artefacts documented but no retention policy | Define retention, deletion, and logging rules | High | Add `docs/privacy.md` |
-| Real-environment smoke validation | Partially implemented | Opt-in `tests/test_e2e.py` path | Make a deterministic CPU lane reproducible | High | Establish a small maintained fixture |
-| Structured observability | Not started | Operational logs exist without a stable event contract | Define events and sensitive-data exclusions | Medium | Add a minimal typed event model |
+| Container provenance and SBOM | Not started | No scan, SBOM, or provenance artefact | Select tools and define update policy | High | Extend the Docker CI job |
+| Retention and privacy operations | Not started | No retention policy | Define retention, deletion, and logging rules | High | Add `docs/privacy.md` |
+| Real-environment smoke validation | Partially implemented | Opt-in end-to-end test | Add deterministic CPU and decoder checks | High | Establish a maintained fixture and environment contract |
+| Structured observability | Not started | Logs lack a stable event contract | Define events and data exclusions | Medium | Add a minimal typed event model |
 | Recovery and failure-mode validation | Not started | No named recovery test workstream | Test partial writes, collisions, and corrupt state | High | Start with atomic-write behaviour |
-| Production-readiness checklist | Not started | No release decision checklist | Define ownership, waivers, and release evidence | Medium | Add after foundational hardening gates |
+| Production-readiness checklist | Not started | No release decision checklist | Define ownership, waivers, and evidence | Medium | Add after foundational hardening gates |
 
 ### Prioritised remaining tasks
 
@@ -423,6 +442,10 @@ Notable design properties:
   Mitigation: add CPU smoke validation with deterministic artefacts.
 - Partial-write and state-corruption behaviour is not yet explicit.
   Mitigation: introduce atomic-write tests and recovery documentation.
+- TorchCodec and the installed PyTorch/FFmpeg environment are not yet proven
+  compatible on the target host.
+  Mitigation: inventory linked libraries, use a supported FFmpeg ABI, and add a
+  minimal real decoder smoke check before relying on Pyannote audio I/O.
 
 ### Operational risks
 
@@ -438,11 +461,10 @@ Notable design properties:
 - Vulnerable dependencies or container layers may go undetected in routine CI.
   Mitigation: add `pip-audit`, security scanning, image scanning, and SBOM
   generation.
-- The committed local `../textformer` dependency source validates sibling
-  development but is not available inside a daemon-only Docker build context.
-  Mitigation: publish or tag `textformer` before Docker release validation, or
-  implement an explicit parent-context Docker build that includes both sibling
-  repositories.
+- A sibling-only dependency source works in the maintainer checkout but fails in
+  isolated CI and daemon-only Docker contexts.
+  Mitigation: retain extraction as WIP until `textformer` has a versioned,
+  independently resolvable distribution or an explicit joint build contract.
 
 ### Validation and governance risks
 
@@ -453,9 +475,6 @@ Notable design properties:
 - Without a maintained strategy memo, project status and hardening priorities
   can become ambiguous.
   Mitigation: update this memo at the end of each hardening work item.
-- The CUDA cleanup branch may contain intended changes only in its WIP stash.
-  Mitigation: do not merge or delete the branch or stash until its scope is
-  reviewed and the complete result passes the current quality gate.
 
 ## 13. Open questions
 
@@ -478,21 +497,19 @@ Notable design properties:
 
 ### Immediate next steps
 
-1. Review and complete `fix/cuda-cleanup-failure`, including its associated WIP
-   stash, then rebase and validate it against `develop`.
-2. Finalise the versioned distribution and Docker build strategy for
-   `textformer`.
-3. Start the dedicated CI security-gate branch.
+1. Confirm the corrected `develop` branch passes isolated GitHub Actions.
+2. Reproduce the TorchCodec decoder failure with an explicit FFmpeg and shared
+   library inventory, then document or pin a supported environment.
+3. Define a versioned distribution and Docker contract for `textformer` before
+   resuming its extraction branch.
 
 ### Short-term priorities
 
-1. Add security, dependency, and secret scanning gates to CI.
-2. Add container image scanning and SBOM generation.
-3. Add privacy and retention operational documentation.
-4. Add reproducible CPU real-smoke validation.
-5. Finalise Docker publication strategy for the extracted package dependency
-   boundary so `make docker-smoke` can resolve `textformer` inside the image
-   build context.
+1. Complete and validate the CUDA cleanup branch.
+2. Add security, dependency, and secret scanning gates to CI.
+3. Add container image scanning and SBOM generation.
+4. Add privacy and retention operational documentation.
+5. Add reproducible CPU real-smoke and TorchCodec decoder validation.
 
 ### Medium-term priorities
 
@@ -504,21 +521,18 @@ Notable design properties:
 
 1. GPU-backed CI validation if a stable runner becomes available.
 2. Stronger provenance tooling after the baseline security gates are stable.
-3. Additional packaging separation work only if the dependency publication
-   strategy changes again.
+3. Additional packaging separation if `transcript-postprocess` is later split
+   into its own repository.
 
 ## 15. Change log
 
 - 2026-06-03: Created initial strategy memo from static codebase inventory.
 - 2026-06-03: Expanded mypy scope to `pipeline.py` and
-  the then-workspace post-processing core, and documented the remaining dynamic
-  ML integration boundaries.
-- 2026-06-04: Extracted `textformer` into a sibling repository and
-  converted `whisperx-daemon` to consume it as an external dependency boundary.
-- 2026-06-04: Renamed the extracted post-processing package and daemon
-  dependency boundary to `textformer`.
-- 2026-06-04: Documented the Docker build-context limitation while the daemon
-  consumes `textformer` through a local sibling source path.
-- 2026-07-25: Consolidated the validated governance, type-safety, dependency
-  extraction, and rename stack into `develop`; classified the CUDA cleanup
-  branch as work in progress; and removed redundant merged branch references.
+  `transcript_postprocess/core.py`, and documented the remaining dynamic ML
+  integration boundaries.
+- 2026-07-25: Audited and consolidated local branch references; retained the
+  extraction and CUDA work under `chore/extract-textformer-dependency` and
+  `fix/cuda-cleanup-failure` because they remain incomplete.
+- 2026-07-25: Reverted the extraction stack from `develop` after GitHub Actions
+  proved that the sibling-only dependency source is not reproducible, and
+  recorded the observed TorchCodec/FFmpeg runtime incompatibility.

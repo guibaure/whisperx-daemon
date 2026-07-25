@@ -6,6 +6,8 @@
 .
 ├── src/whisperx_daemon/
 │   daemon package
+├── packages/transcript-postprocess/
+│   reusable text post-processing package
 ├── tests/
 │   repository tests
 ├── Dockerfile
@@ -33,8 +35,8 @@
 - `pipeline.py`
   WhisperX integration, alignment, diarisation, post-processing, and output
   shaping.
-- `textformer`
-  External reusable pseudonymisation and configured term replacement package.
+- `packages/transcript-postprocess`
+  Reusable pseudonymisation and configured term replacement.
 
 ## Processing Flow
 
@@ -81,7 +83,7 @@ The codebase is intentionally narrow and explicit:
 - configuration is separated from orchestration
 - filesystem I/O is separated from business rules
 - WhisperX integration is isolated in one layer
-- text post-processing is consumed through an external package boundary
+- text post-processing lives behind its own package boundary
 
 This keeps the daemon maintainable and allows the reusable text-processing
 logic to evolve independently.

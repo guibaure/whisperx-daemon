@@ -18,6 +18,7 @@ RUN groupadd --gid 10001 whisperx \
         whisperx
 
 COPY pyproject.toml uv.lock README.md /app/
+COPY packages/transcript-postprocess /app/packages/transcript-postprocess
 COPY docker/entrypoint.sh /usr/local/bin/whisperx-daemon-entrypoint
 
 ENV PYTHONDONTWRITEBYTECODE=1

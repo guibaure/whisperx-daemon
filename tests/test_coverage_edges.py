@@ -18,9 +18,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from textformer import PostprocessError
-from textformer import cli as postprocess_cli
-from textformer.core import (
+from transcript_postprocess import PostprocessError
+from transcript_postprocess import cli as postprocess_cli
+from transcript_postprocess.core import (
     assign_person_pseudonyms,
     build_person_alias_map,
     build_person_replacement_map,
@@ -38,13 +38,12 @@ from textformer.core import (
     postprocess_text,
     replace_named_terms,
 )
-from textformer.core import (
+from transcript_postprocess.core import (
     load_person_ner_pipeline as load_postprocess_person_ner_pipeline,
 )
-from textformer.core import (
+from transcript_postprocess.core import (
     load_term_replacement_map as load_postprocess_term_replacement_map,
 )
-
 from whisperx_daemon import app as app_module
 from whisperx_daemon import cli as daemon_cli
 from whisperx_daemon.config import RuntimeLayout, StreamingConfig, TranscriptionConfig
@@ -101,7 +100,7 @@ class PostprocessCoreEdgeTests(unittest.TestCase):
 
     def test_person_ner_loader_reports_missing_transformers(self) -> None:
         with patch(
-            "textformer.core.importlib.import_module",
+            "transcript_postprocess.core.importlib.import_module",
             side_effect=ModuleNotFoundError("transformers"),
         ):
             with self.assertRaisesRegex(PostprocessError, "transformers"):

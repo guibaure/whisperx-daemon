@@ -6,22 +6,9 @@ The provided image is CUDA-oriented, but it can still run in CPU mode.
 The image uses the repository `uv.lock` during build, so container dependency
 resolution follows the same lockfile as local development and CI.
 
-Current local development uses the sibling source dependency
-`../textformer`. A plain daemon-only Docker build context cannot contain that
-parent-directory dependency, so Docker builds are blocked until one of these is
-true:
-
-- `textformer` is consumed from a released package or immutable Git tag; or
-- the Docker build is redesigned to use a parent build context that explicitly
-  includes both sibling repositories.
-
 ```bash
 docker build -t whisperx-daemon:latest .
 ```
-
-Run this command only after the dependency source is reachable inside the
-container build context. Otherwise `uv sync --frozen` fails while resolving
-`file:///textformer`.
 
 For development validation, use the disposable smoke-test target:
 

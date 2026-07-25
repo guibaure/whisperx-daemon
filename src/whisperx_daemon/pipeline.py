@@ -15,25 +15,25 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict
 
-from textformer import (
+from transcript_postprocess import (
     PostprocessError,
 )
-from textformer import (
+from transcript_postprocess import (
     build_person_replacement_map_from_fragments as build_person_map_shared,
 )
-from textformer import (
+from transcript_postprocess import (
     load_person_ner_pipeline as load_person_ner_pipeline_shared,
 )
-from textformer import (
+from transcript_postprocess import (
     load_term_replacement_map as load_term_replacement_map_shared,
 )
-from textformer import (
+from transcript_postprocess import (
     replace_named_terms as replace_named_terms_shared,
 )
-from textformer import (
+from transcript_postprocess import (
     replace_person_names as replace_person_names_shared,
 )
-from textformer.core import PersonNerPipeline
+from transcript_postprocess.core import PersonNerPipeline
 
 from .config import TranscriptionConfig
 from .filesystem import write_json_payload

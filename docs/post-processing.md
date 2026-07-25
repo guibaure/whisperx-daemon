@@ -88,9 +88,23 @@ Behaviour:
 
 ## Standalone Package
 
-The reusable post-processing logic now lives in the sibling
-`textformer` repository. Install that repository separately when
-you need the standalone CLI or the Python package outside `whisperx-daemon`.
+The reusable post-processing logic is also available independently:
 
-The daemon repository still consumes the package as a normal dependency and
-uses the same post-processing behaviour internally.
+```bash
+make setup-cpu
+
+uv run transcript-postprocess \
+  --input-file ./raw.txt \
+  --output-file ./sanitised.txt \
+  --pseudonymize-person-names \
+  --term-replacements-file ./term-replacements.json
+```
+
+For backwards compatibility, the historical daemon-local entrypoint also still
+exists:
+
+```bash
+uv run python -m whisperx_daemon.standalone \
+  --input-file ./raw.txt \
+  --output-file ./sanitised.txt
+```

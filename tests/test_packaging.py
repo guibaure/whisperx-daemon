@@ -1,7 +1,16 @@
-"""Packaging and dependency-boundary regression tests."""
+"""Packaging and development-bootstrap regression tests.
+
+These tests verify the repository's intended monorepo contract:
+
+- ``whisperx-daemon`` packages only its own ``src`` tree
+- ``transcript-postprocess`` is installed separately during development
+- plain repository checkouts still expose stable development-time entrypoints
+- first-class project documentation is present and not hidden by ignore rules
+"""
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tomllib
 import unittest
@@ -11,7 +20,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 
 
 class PackagingContractTests(unittest.TestCase):
-    """Assert the daemon repository keeps the extracted-package boundary explicit."""
+    """Assert the repository keeps the two-package boundary explicit."""
 
     def test_root_distribution_packages_only_daemon_source_tree(self) -> None:
         pyproject_payload = tomllib.loads(
@@ -24,7 +33,7 @@ class PackagingContractTests(unittest.TestCase):
 
         self.assertEqual(package_roots, ["src"])
 
-    def test_pyproject_declares_daemon_runtime_dependencies(self) -> None:
+    def test_pyproject_declares_common_dependencies(self) -> None:
         pyproject_payload = tomllib.loads(
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
@@ -32,8 +41,8 @@ class PackagingContractTests(unittest.TestCase):
         dependencies = pyproject_payload["project"]["dependencies"]
         dep_text = " ".join(dependencies)
 
-        self.assertIn("textformer[ner]", dep_text)
-        self.assertIn("torchcodec", dep_text)
+        for expected in ("transcript-postprocess", "torchcodec"):
+            self.assertIn(expected, dep_text)
 
     def test_pyproject_declares_cpu_and_gpu_extras(self) -> None:
         pyproject_payload = tomllib.loads(
@@ -60,18 +69,7 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("mypy", dev_text)
         self.assertIn("ruff", dev_text)
 
-    def test_pyproject_no_longer_declares_workspace_membership(self) -> None:
-        pyproject_payload = tomllib.loads(
-            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        )
-
-        self.assertNotIn("workspace", pyproject_payload.get("tool", {}).get("uv", {}))
-        self.assertEqual(
-            pyproject_payload["tool"]["uv"]["sources"]["textformer"],
-            {"path": "../textformer"},
-        )
-
-    def test_mypy_scope_targets_daemon_modules_only(self) -> None:
+    def test_pyproject_mypy_scope_includes_critical_runtime_modules(self) -> None:
         pyproject_payload = tomllib.loads(
             (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         )
@@ -79,7 +77,10 @@ class PackagingContractTests(unittest.TestCase):
         mypy_files = pyproject_payload["tool"]["mypy"]["files"]
 
         self.assertIn("src/whisperx_daemon/pipeline.py", mypy_files)
-        self.assertNotIn("packages/textformer", " ".join(mypy_files))
+        self.assertIn(
+            "packages/transcript-postprocess/src/transcript_postprocess/core.py",
+            mypy_files,
+        )
 
     def test_makefile_declares_coverage_target(self) -> None:
         makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
@@ -87,10 +88,6 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("coverage:", makefile_text)
         self.assertIn("coverage run -m unittest discover -s tests -v", makefile_text)
         self.assertIn("coverage report", makefile_text)
-        self.assertIn(
-            "PYTHONPATH=src $(PYTHON) -m unittest discover -s tests -v",
-            makefile_text,
-        )
 
     def test_makefile_declares_docker_smoke_target(self) -> None:
         makefile_text = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
@@ -107,12 +104,65 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIn("NVIDIA_VISIBLE_DEVICES", smoke_script_text)
         self.assertIn("PyTorch CUDA unavailable", smoke_script_text)
 
+    def test_pyproject_declares_uv_workspace(self) -> None:
+        pyproject_payload = tomllib.loads(
+            (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["workspace"]["members"],
+            ["packages/transcript-postprocess"],
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["sources"]["transcript-postprocess"],
+            {"workspace": True},
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["sources"]["torch"],
+            [
+                {"index": "pytorch-cpu", "extra": "cpu"},
+                {"index": "pytorch-gpu", "extra": "gpu"},
+            ],
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["sources"]["torchaudio"],
+            [
+                {"index": "pytorch-cpu", "extra": "cpu"},
+                {"index": "pytorch-gpu", "extra": "gpu"},
+            ],
+        )
+        self.assertEqual(
+            pyproject_payload["tool"]["uv"]["conflicts"],
+            [[{"extra": "cpu"}, {"extra": "gpu"}]],
+        )
+
     def test_uv_lock_exists(self) -> None:
         self.assertTrue((REPOSITORY_ROOT / "uv.lock").is_file())
 
     def test_project_readmes_exist(self) -> None:
         self.assertTrue((REPOSITORY_ROOT / "README.md").is_file())
-        self.assertTrue((REPOSITORY_ROOT / "docs" / "post-processing.md").is_file())
+        self.assertTrue(
+            (
+                REPOSITORY_ROOT / "packages" / "transcript-postprocess" / "README.md"
+            ).is_file()
+        )
+
+    def test_docs_directory_contains_key_guides(self) -> None:
+        expected_docs = [
+            "getting-started.md",
+            "installation.md",
+            "usage.md",
+            "streaming.md",
+            "configuration.md",
+            "output.md",
+            "post-processing.md",
+            "docker.md",
+            "architecture.md",
+            "troubleshooting.md",
+        ]
+
+        for document_name in expected_docs:
+            self.assertTrue((REPOSITORY_ROOT / "docs" / document_name).is_file())
 
     def test_project_readmes_are_not_ignored(self) -> None:
         completed_process = subprocess.run(
@@ -120,7 +170,7 @@ class PackagingContractTests(unittest.TestCase):
                 "git",
                 "check-ignore",
                 "README.md",
-                "docs/post-processing.md",
+                "packages/transcript-postprocess/README.md",
             ],
             cwd=REPOSITORY_ROOT,
             capture_output=True,
@@ -130,26 +180,24 @@ class PackagingContractTests(unittest.TestCase):
 
         self.assertNotEqual(completed_process.returncode, 0, completed_process.stdout)
 
-    def test_repository_root_no_longer_contains_package_shim(self) -> None:
-        self.assertFalse((REPOSITORY_ROOT / "transcript_postprocess").exists())
-        self.assertFalse(
-            (REPOSITORY_ROOT / "packages" / "transcript-postprocess").exists()
+    def test_repository_root_contains_transcript_postprocess_checkout_shim(
+        self,
+    ) -> None:
+        self.assertTrue(
+            (REPOSITORY_ROOT / "transcript_postprocess" / "__init__.py").exists()
         )
-        self.assertFalse((REPOSITORY_ROOT / "textformer").exists())
-        self.assertFalse((REPOSITORY_ROOT / "packages" / "textformer").exists())
+        self.assertTrue(
+            (REPOSITORY_ROOT / "transcript_postprocess" / "__main__.py").exists()
+        )
 
-    def test_dockerfile_no_longer_copies_package_tree(self) -> None:
+    def test_dockerfile_installs_transcript_postprocess_explicitly(self) -> None:
         dockerfile_text = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
 
-        self.assertIn("COPY pyproject.toml uv.lock README.md /app/", dockerfile_text)
-        self.assertNotIn(
+        self.assertIn(
             "COPY packages/transcript-postprocess /app/packages/transcript-postprocess",
             dockerfile_text,
         )
-        self.assertNotIn(
-            "COPY packages/textformer /app/packages/textformer",
-            dockerfile_text,
-        )
+        self.assertIn("COPY pyproject.toml uv.lock README.md /app/", dockerfile_text)
         self.assertIn(
             "uv sync --frozen --extra gpu --no-dev --all-packages",
             dockerfile_text,
@@ -212,3 +260,35 @@ class PackagingContractTests(unittest.TestCase):
             "export MPLCONFIGDIR=${MPLCONFIGDIR:-${container_state_dir}/matplotlib}",
             entrypoint_text,
         )
+
+    def test_plain_checkout_cli_help_still_works(self) -> None:
+        environment = dict(os.environ)
+        environment.pop("PYTHONPATH", None)
+
+        completed_process = subprocess.run(
+            ["python3", "-m", "whisperx_daemon", "--help"],
+            cwd=REPOSITORY_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(completed_process.returncode, 0, completed_process.stderr)
+        self.assertIn("whisperx-daemon", completed_process.stdout)
+
+    def test_plain_checkout_transcript_postprocess_cli_help_still_works(self) -> None:
+        environment = dict(os.environ)
+        environment.pop("PYTHONPATH", None)
+
+        completed_process = subprocess.run(
+            ["python3", "-m", "transcript_postprocess", "--help"],
+            cwd=REPOSITORY_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(completed_process.returncode, 0, completed_process.stderr)
+        self.assertIn("transcript-postprocess", completed_process.stdout)

@@ -18,8 +18,7 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from textformer import postprocess_text
-
+from transcript_postprocess import postprocess_text
 from whisperx_daemon.app import configure_logging, resolve_transcription_config, run
 from whisperx_daemon.cli import build_argument_parser, main
 from whisperx_daemon.config import RuntimeLayout, StreamingConfig, TranscriptionConfig
@@ -421,7 +420,7 @@ class PersonNerLoaderTests(unittest.TestCase):
                 return "ner-pipeline"
 
         with patch(
-            "textformer.core.importlib.import_module",
+            "transcript_postprocess.core.importlib.import_module",
             return_value=_FakeTransformersModule(),
         ):
             pipeline = load_person_ner_pipeline("example/model")
@@ -450,7 +449,7 @@ class PersonNerLoaderTests(unittest.TestCase):
                     raise AssertionError("Model loading should not be reached")
 
         with patch(
-            "textformer.core.importlib.import_module",
+            "transcript_postprocess.core.importlib.import_module",
             return_value=_FakeTransformersModule(),
         ):
             with self.assertRaises(TranscriptionError) as context:
