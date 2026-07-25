@@ -164,6 +164,7 @@ variants and should not be mixed in the same environment.
 | [Post-Processing](./docs/post-processing.md) | Pseudonymisation, term replacement, standalone usage |
 | [Docker](./docs/docker.md) | Build, CPU/CUDA execution, GPU, entrypoint override |
 | [Architecture](./docs/architecture.md) | Module responsibilities and processing flow |
+| [Strategy Memo](./STRATEGY.md) | Current state, risks, remaining hardening work, recommended next steps |
 | [Troubleshooting](./docs/troubleshooting.md) | Common runtime and environment failures |
 
 ## Licence

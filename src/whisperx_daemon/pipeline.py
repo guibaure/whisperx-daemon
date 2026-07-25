@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import gc
 import importlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from transcript_postprocess import (
     PostprocessError,
@@ -33,9 +33,52 @@ from transcript_postprocess import (
 from transcript_postprocess import (
     replace_person_names as replace_person_names_shared,
 )
+from transcript_postprocess.core import PersonNerPipeline
 
 from .config import TranscriptionConfig
 from .filesystem import write_json_payload
+
+# WhisperX exposes dynamic, version-dependent objects without a stable typed
+# public API, so the integration boundary remains intentionally narrow here.
+WhisperXModule = Any
+WhisperXAudio = Any
+WhisperXDiarizationPipelineClass = type[Any]
+
+
+class TranscriptSegment(TypedDict, total=False):
+    """Stable segment shape written to repository transcript artefacts."""
+
+    id: object
+    start: int | float | str | None
+    end: int | float | str | None
+    speaker: str
+    text: str
+
+
+class SpeakerEntry(TypedDict):
+    """Stable speaker-index entry written to repository transcript artefacts."""
+
+    label: str
+
+
+class TranscriptPayload(TypedDict):
+    """Top-level JSON payload stored for successful transcriptions."""
+
+    source_path: str
+    generated_at: str
+    status: str
+    text: str
+    language: str | None
+    segments: list[TranscriptSegment]
+    speakers: list[SpeakerEntry]
+
+
+class WhisperXResult(TypedDict, total=False):
+    """Subset of WhisperX result fields consumed by the daemon."""
+
+    text: str
+    language: str
+    segments: list[Mapping[str, object]]
 
 
 class TranscriptionError(RuntimeError):
@@ -59,10 +102,10 @@ class TranscriptDocument:
     status: str
     text: str
     language: str | None
-    segments: list[dict[str, Any]]
-    speakers: list[dict[str, Any]]
+    segments: list[TranscriptSegment]
+    speakers: list[SpeakerEntry]
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> TranscriptPayload:
         """Return the JSON payload stored in the output directory."""
 
         return {
@@ -76,7 +119,7 @@ class TranscriptDocument:
         }
 
 
-def load_whisperx_module() -> Any:
+def load_whisperx_module() -> WhisperXModule:
     """Import WhisperX lazily so the package can start without the dependency.
 
     Delaying the import makes local development and unit tests cheaper because
@@ -92,7 +135,7 @@ def load_whisperx_module() -> Any:
         ) from exc
 
 
-def load_person_ner_pipeline(model_name: str) -> Callable[[str], list[dict[str, Any]]]:
+def load_person_ner_pipeline(model_name: str) -> PersonNerPipeline:
     """Load a token-classification pipeline for person-name detection lazily.
 
     The import is deferred so ordinary transcription runs do not pay the cost of
@@ -109,7 +152,11 @@ def load_person_ner_pipeline(model_name: str) -> Callable[[str], list[dict[str, 
 class WhisperXModelSession:
     """Loaded WhisperX ASR model reused by batch and streaming workflows."""
 
-    def __init__(self, config: TranscriptionConfig, whisperx_module: Any) -> None:
+    def __init__(
+        self,
+        config: TranscriptionConfig,
+        whisperx_module: WhisperXModule,
+    ) -> None:
         """Load the configured WhisperX model once for repeated transcriptions."""
 
         self._config = config
@@ -120,7 +167,7 @@ class WhisperXModelSession:
             language=config.language,
         )
 
-    def transcribe(self, audio: Any) -> dict[str, Any]:
+    def transcribe(self, audio: WhisperXAudio) -> WhisperXResult:
         """Transcribe an in-memory WhisperX-compatible audio object."""
 
         return self._model.transcribe(
@@ -146,11 +193,8 @@ class WhisperXTranscriber:
     def __init__(
         self,
         config: TranscriptionConfig,
-        module_loader: Callable[[], Any] | None = None,
-        person_ner_pipeline_loader: Callable[
-            [str], Callable[[str], list[dict[str, Any]]]
-        ]
-        | None = None,
+        module_loader: Callable[[], WhisperXModule] | None = None,
+        person_ner_pipeline_loader: Callable[[str], PersonNerPipeline] | None = None,
     ) -> None:
         """Store transcription configuration and an optional custom loader."""
 
@@ -217,12 +261,15 @@ class WhisperXTranscriber:
             )
         return processed_document
 
-    def open_model_session(self, whisperx_module: Any) -> WhisperXModelSession:
+    def open_model_session(
+        self,
+        whisperx_module: WhisperXModule,
+    ) -> WhisperXModelSession:
         """Return a reusable WhisperX model session for repeated audio windows."""
 
         return WhisperXModelSession(self._config, whisperx_module)
 
-    def load_module(self) -> Any:
+    def load_module(self) -> WhisperXModule:
         """Return the configured WhisperX module.
 
         Streaming mode needs explicit access to the module so it can load the
@@ -233,10 +280,10 @@ class WhisperXTranscriber:
 
     def transcribe_loaded_audio(
         self,
-        whisperx_module: Any,
-        audio: Any,
+        whisperx_module: WhisperXModule,
+        audio: WhisperXAudio,
         model_session: WhisperXModelSession | None = None,
-    ) -> dict[str, Any]:
+    ) -> WhisperXResult:
         """Transcribe an already-loaded audio object.
 
         Streaming mode passes a preloaded model session across many windows so
@@ -259,10 +306,10 @@ class WhisperXTranscriber:
 
     def _align_transcript(
         self,
-        whisperx_module: Any,
-        audio: Any,
-        result: dict[str, Any],
-    ) -> dict[str, Any]:
+        whisperx_module: WhisperXModule,
+        audio: WhisperXAudio,
+        result: WhisperXResult,
+    ) -> WhisperXResult:
         """Refine segment timings with WhisperX alignment when a language is known.
 
         WhisperX alignment needs a language code. If no language is available
@@ -293,20 +340,20 @@ class WhisperXTranscriber:
 
     def align_transcript(
         self,
-        whisperx_module: Any,
-        audio: Any,
-        result: dict[str, Any],
-    ) -> dict[str, Any]:
+        whisperx_module: WhisperXModule,
+        audio: WhisperXAudio,
+        result: WhisperXResult,
+    ) -> WhisperXResult:
         """Public wrapper for alignment used by streaming orchestration."""
 
         return self._align_transcript(whisperx_module, audio, result)
 
     def _apply_diarization(
         self,
-        whisperx_module: Any,
-        audio: Any,
-        result: dict[str, Any],
-    ) -> dict[str, Any]:
+        whisperx_module: WhisperXModule,
+        audio: WhisperXAudio,
+        result: WhisperXResult,
+    ) -> WhisperXResult:
         """Attach speaker labels using the WhisperX diarisation pipeline.
 
         Diarisation is explicitly opt-in because it requires additional models
@@ -334,7 +381,10 @@ class WhisperXTranscriber:
             del diarize_pipeline
             self._release_runtime_memory()
 
-    def _load_diarization_pipeline_class(self, whisperx_module: Any) -> type[Any]:
+    def _load_diarization_pipeline_class(
+        self,
+        whisperx_module: WhisperXModule,
+    ) -> WhisperXDiarizationPipelineClass:
         """Support both legacy and current WhisperX diarisation import layouts.
 
         WhisperX has exposed the diarisation pipeline in different places across
@@ -348,7 +398,10 @@ class WhisperXTranscriber:
         diarize_module = importlib.import_module("whisperx.diarize")
         return diarize_module.DiarizationPipeline
 
-    def _build_diarization_pipeline(self, pipeline_class: type[Any]) -> Any:
+    def _build_diarization_pipeline(
+        self,
+        pipeline_class: WhisperXDiarizationPipelineClass,
+    ) -> Any:
         """Instantiate the diarisation pipeline across WhisperX API variants.
 
         Some versions expect ``use_auth_token`` while others accept ``token``.
@@ -395,7 +448,7 @@ class WhisperXTranscriber:
 
 def build_transcript_document(
     source_path: Path,
-    result: dict[str, Any],
+    result: WhisperXResult,
     logical_source_path: Path | None = None,
 ) -> TranscriptDocument:
     """Convert the WhisperX result into the repository's output schema.
@@ -418,7 +471,7 @@ def build_transcript_document(
     )
 
 
-def normalise_segment(segment: dict[str, Any]) -> dict[str, Any]:
+def normalise_segment(segment: Mapping[str, object]) -> TranscriptSegment:
     """Keep the segment schema compact, explicit, and JSON-friendly.
 
     Only the fields currently consumed by this project are preserved in the
@@ -426,20 +479,24 @@ def normalise_segment(segment: dict[str, Any]) -> dict[str, Any]:
     """
 
     speaker_label = segment.get("speaker")
-    normalised_segment = {
+    normalised_segment: TranscriptSegment = {
         "id": segment.get("id"),
-        "start": segment.get("start"),
-        "end": segment.get("end"),
-        "text": segment.get("text", ""),
+        "text": str(segment.get("text", "")),
     }
-    if speaker_label is not None:
+    start_value = segment.get("start")
+    if isinstance(start_value, int | float | str) or start_value is None:
+        normalised_segment["start"] = start_value
+    end_value = segment.get("end")
+    if isinstance(end_value, int | float | str) or end_value is None:
+        normalised_segment["end"] = end_value
+    if isinstance(speaker_label, str):
         normalised_segment["speaker"] = speaker_label
     return normalised_segment
 
 
 def pseudonymize_transcript_document(
     document: TranscriptDocument,
-    person_ner_pipeline: Callable[[str], list[dict[str, Any]]],
+    person_ner_pipeline: PersonNerPipeline,
 ) -> TranscriptDocument:
     """Replace detected person names with stable pseudonyms in transcript text.
 
@@ -494,12 +551,12 @@ def replace_terms_in_transcript_document(
 
 
 def replace_terms_in_segment(
-    segment: dict[str, Any],
+    segment: TranscriptSegment,
     replacement_map: dict[str, str],
-) -> dict[str, Any]:
+) -> TranscriptSegment:
     """Return a segment copy whose text field uses configured term replacements."""
 
-    updated_segment = dict(segment)
+    updated_segment = normalise_segment(segment)
     updated_segment["text"] = replace_named_terms_shared(
         str(segment.get("text", "")),
         replacement_map,
@@ -538,12 +595,12 @@ def iter_person_detection_fragments(document: TranscriptDocument) -> list[str]:
 
 
 def pseudonymize_segment_text(
-    segment: dict[str, Any],
+    segment: TranscriptSegment,
     replacement_map: dict[str, str],
-) -> dict[str, Any]:
+) -> TranscriptSegment:
     """Return a segment copy whose text field uses pseudonymised names."""
 
-    updated_segment = dict(segment)
+    updated_segment = normalise_segment(segment)
     updated_segment["text"] = replace_person_names_shared(
         str(segment.get("text", "")),
         replacement_map,
@@ -551,7 +608,7 @@ def pseudonymize_segment_text(
     return updated_segment
 
 
-def build_speaker_index(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_speaker_index(segments: list[TranscriptSegment]) -> list[SpeakerEntry]:
     """Summarise which speakers were observed in the transcript.
 
     The index is intentionally small: one label per discovered speaker, in first
@@ -559,7 +616,7 @@ def build_speaker_index(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
 
     seen_speakers: set[str] = set()
-    speakers: list[dict[str, Any]] = []
+    speakers: list[SpeakerEntry] = []
     for segment in segments:
         speaker_label = segment.get("speaker")
         if not isinstance(speaker_label, str) or speaker_label in seen_speakers:
@@ -637,7 +694,7 @@ def build_plain_text_transcript(
 
 
 def format_plain_text_segment(
-    segment: dict[str, Any],
+    segment: TranscriptSegment,
     include_time_ranges: bool = True,
     include_speaker_labels: bool = True,
 ) -> str:

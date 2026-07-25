@@ -16,14 +16,18 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, BinaryIO, Protocol
+from typing import Any, BinaryIO, Protocol, Self
 
 from .config import RuntimeLayout, StreamingConfig, TranscriptionConfig
 from .filesystem import move_runtime_file
 from .pipeline import (
     TranscriptDocument,
     TranscriptionError,
+    TranscriptSegment,
+    WhisperXAudio,
     WhisperXModelSession,
+    WhisperXModule,
+    WhisperXResult,
     WhisperXTranscriber,
     build_speaker_index,
     normalise_segment,
@@ -272,7 +276,7 @@ class StreamingRunResult:
 class WindowTranscriber(Protocol):
     """Context-managed object able to transcribe PCM windows."""
 
-    def __enter__(self) -> WindowTranscriber:
+    def __enter__(self) -> Self:
         """Start the reusable window transcription resources."""
         ...  # pragma: no cover
 
@@ -280,7 +284,7 @@ class WindowTranscriber(Protocol):
         """Release reusable window transcription resources."""
         ...  # pragma: no cover
 
-    def transcribe_window(self, window: AudioWindow) -> dict[str, Any]:
+    def transcribe_window(self, window: AudioWindow) -> WhisperXResult:
         """Return the WhisperX-like result for one audio window."""
         ...  # pragma: no cover
 
@@ -321,8 +325,8 @@ class SegmentCommitter:
     def commit_segments(
         self,
         window: AudioWindow,
-        result: dict[str, Any],
-    ) -> list[dict[str, Any]]:
+        result: WhisperXResult,
+    ) -> list[TranscriptSegment]:
         """Return stream-offset segments that are safe to emit."""
 
         commit_limit = (
@@ -330,7 +334,7 @@ class SegmentCommitter:
             if window.is_final
             else window.end_seconds - self._config.commit_overlap_seconds
         )
-        committed_segments: list[dict[str, Any]] = []
+        committed_segments: list[TranscriptSegment] = []
         for raw_segment in result.get("segments", []):
             if not isinstance(raw_segment, dict):
                 continue
@@ -356,10 +360,10 @@ class StreamingTranscriptAccumulator:
 
     def __init__(self, stream_id: str) -> None:
         self._stream_id = stream_id
-        self._segments: list[dict[str, Any]] = []
+        self._segments: list[TranscriptSegment] = []
         self._language: str | None = None
 
-    def extend(self, segments: list[dict[str, Any]], language: str | None) -> None:
+    def extend(self, segments: list[TranscriptSegment], language: str | None) -> None:
         """Append committed segments and remember the detected language."""
 
         self._segments.extend(segments)
@@ -367,7 +371,7 @@ class StreamingTranscriptAccumulator:
             self._language = language
 
     @property
-    def segments(self) -> list[dict[str, Any]]:
+    def segments(self) -> list[TranscriptSegment]:
         """Return a copy of committed segments."""
 
         return list(self._segments)
@@ -432,14 +436,16 @@ class StreamingWindowTranscriber:
     def __init__(
         self,
         transcriber: WhisperXTranscriber,
-        audio_converter: Callable[[AudioWindow], Any] = pcm_window_to_float32_audio,
+        audio_converter: Callable[[AudioWindow], WhisperXAudio] = (
+            pcm_window_to_float32_audio
+        ),
     ) -> None:
         self._transcriber = transcriber
         self._audio_converter = audio_converter
-        self._whisperx_module: Any | None = None
+        self._whisperx_module: WhisperXModule | None = None
         self._model_session: WhisperXModelSession | None = None
 
-    def __enter__(self) -> StreamingWindowTranscriber:
+    def __enter__(self) -> Self:
         self._whisperx_module = self._transcriber.load_module()
         self._model_session = self._transcriber.open_model_session(
             self._whisperx_module
@@ -452,7 +458,7 @@ class StreamingWindowTranscriber:
         self._whisperx_module = None
         self._model_session = None
 
-    def transcribe_window(self, window: AudioWindow) -> dict[str, Any]:
+    def transcribe_window(self, window: AudioWindow) -> WhisperXResult:
         """Transcribe and align one PCM window."""
 
         if self._whisperx_module is None or self._model_session is None:
@@ -480,7 +486,7 @@ def safe_stream_output_stem(stream_id: str) -> str:
     return cleaned or "stream"
 
 
-def _result_language(result: dict[str, Any]) -> str | None:
+def _result_language(result: WhisperXResult) -> str | None:
     language = result.get("language")
     if isinstance(language, str) and language:
         return language
